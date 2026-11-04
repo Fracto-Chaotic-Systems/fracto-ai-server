@@ -1,9 +1,19 @@
 import express from "express";
+import { create_engine_status_reader } from "./engines/registry.js";
+import { public_engine_status } from "./engines/public_status.js";
+import { inference_router } from "./inference/http.js";
+import { public_peer_status } from "./peers/public_status.js";
 
 export const SERVICE_NAME = "fracto-ai-server";
 
 /** Health describes this process only; no model or remote service is required. */
-export const create_app = () => {
+export const create_app = ({
+  engine_status = create_engine_status_reader(),
+  inference = null,
+  peer_status = () => ({ state: "disabled" }),
+  get_exchange = () => null,
+  get_delegation = () => null,
+} = {}) => {
   const app = express();
   app.disable("x-powered-by");
   const health = (req, res) => {
@@ -19,6 +29,31 @@ export const create_app = () => {
   app.get("/", health);
   app.get("/healthz", health);
   app.get("/readyz", health);
+  app.get("/engine/status", async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    try {
+      res.json(public_engine_status(await engine_status()));
+    } catch {
+      res.json(
+        public_engine_status({
+          state: "engine_unavailable",
+          error: "ENGINE_UNAVAILABLE",
+        }),
+      );
+    }
+  });
+  app.use(
+    "/inference",
+    inference_router(inference, get_exchange, get_delegation),
+  );
+  app.get("/peers/status", (req, res) => {
+    res.set("Cache-Control", "no-store");
+    try {
+      res.json(public_peer_status(peer_status()));
+    } catch {
+      res.json(public_peer_status({ state: "unavailable" }));
+    }
+  });
   // Do not echo request paths, headers, bodies, or identity into responses/logs.
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
   return app;
@@ -33,4 +68,12 @@ export const configured_port = (
     throw new Error("Invalid FRACTO_AI_PORT");
   }
   return port;
+};
+
+export const configured_host = (
+  value = process.env.FRACTO_AI_LISTEN_HOST ?? "127.0.0.1",
+) => {
+  if (!["127.0.0.1", "0.0.0.0"].includes(value))
+    throw new Error("Invalid FRACTO_AI_LISTEN_HOST");
+  return value;
 };

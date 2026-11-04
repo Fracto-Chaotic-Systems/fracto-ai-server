@@ -5,15 +5,18 @@
   "type": "module",
   "private": true,
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "check": "node --check app.js && node --check index.js && node --test",
+    "check": "node check_syntax.js && node --test",
     "test": "node --test"
   },
   "dependencies": {
-    "express": "^5.2.1"
+    "@peculiar/x509": "3.1.0",
+    "ajv": "8.20.0",
+    "express": "^5.2.1",
+    "reflect-metadata": "0.2.2"
   }
 }

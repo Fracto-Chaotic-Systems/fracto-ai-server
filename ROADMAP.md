@@ -1,6 +1,31 @@
 # AI server implementation plan
 
 Status: stage 0 foundation implemented; stages 1–5 are planned.
+Windows host inventory and post-readiness baseline collection now run
+automatically through the standard Fracto startup workflows. This is the first
+deployment increment, not completion of the broader fleet-monitoring stage.
+Pinned Windows-local Ollama installation, independent startup and the common
+engine adapter are implemented. Model selection and real-model generation
+benchmarks remain pending; see OLLAMA.md and engines/README.md. A machine-authorized
+local inference queue and SQLite persistence are implemented in inference/README.md.
+This is a bounded advisory prototype; distributed job scheduling remains later work.
+
+Explicit peer trust and bounded mutual-TLS status connections are now implemented
+in peers/README.md, including unattended identity creation and automatic probing
+after administrative enrollment. Scoped artifact/metadata pulls are implemented
+in exchange/README.md with independent durable catalogs, verified canonical content,
+resumable cursors, relay deduplication, retention and resnapshot. Imported material
+remains untrusted evidence. Explicit whole-request delegation now runs through
+delegation/README.md: one selected peer, required digest/profile, one-hop local
+execution and durable reconciliation without automatic resubmission. Broad compute
+campaign scheduling and game actions remain later work;
+actual lab-node enrollment and artifact grants remain deployment-specific.
+
+The next deployment increment is [FIRST_STAGE.md](FIRST_STAGE.md): Ollama-first
+inference on independent Windows nodes with 48 GB and 64 GB RAM, followed by
+authenticated exchange of inference artifacts and whole-request delegation.
+This brings forward the inference adapter prototype; the broader stage 1–5
+operations/game deliverables below remain planned.
 
 ## Purpose and boundaries
 
@@ -18,8 +43,13 @@ Existing services retain ownership: data owns persistent records, tiles owns
 numerical access and its mesh inventory, assets owns rendering/publication,
 and the root supervisor owns local process lifecycle. This service coordinates
 those boundaries rather than replacing them. A provider-neutral model adapter
-will allow hosted or separately deployed local inference. No GPU or model
-provider is selected at the foundation stage.
+will support Ollama, llama.cpp, vLLM and SGLang eventually, beginning with Ollama.
+Each AI node owns a complete local engine and inference store and operates
+independently of peers. Nodes may exchange approved inference artifacts or
+delegate whole requests; model execution must never be split across hosts.
+The initial deployment is native Windows; GPU availability and the baseline
+model must be established by measurement. See FIRST_STAGE.md for the accepted
+deployment decisions and implementation sequence.
 
 ## Stage 0 — Repository and build foundation (implemented)
 
