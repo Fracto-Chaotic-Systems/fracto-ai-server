@@ -1,0 +1,19 @@
+{
+  "name": "fracto-ai-server",
+  "version": "0.1.0",
+  "description": "Fracto AI and operations service foundation",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "check": "node --check app.js && node --check index.js && node --test",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
