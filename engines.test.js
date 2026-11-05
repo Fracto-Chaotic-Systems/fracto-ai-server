@@ -91,6 +91,125 @@ const fixture = async (t, options = {}) => {
   };
 };
 
+test("Ollama streams validated text before completion, without thinking or metadata", async (t) => {
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  let first;
+  const started = new Promise((resolve) => {
+    first = resolve;
+  });
+  t.after(() => release());
+  const { adapter, calls } = await fixture(t, {
+    chat: async ({ res }) => {
+      res.writeHead(200, { "Content-Type": "application/x-ndjson" });
+      res.write(
+        JSON.stringify({
+          model: "fixture:latest",
+          done: false,
+          message: {
+            role: "assistant",
+            content: "Hello ",
+            thinking: "private",
+          },
+        }) + "\n",
+      );
+      await gate;
+      res.end(
+        JSON.stringify({
+          model: "fixture:latest",
+          done: true,
+          message: { role: "assistant", content: "world" },
+        }) + "\n",
+      );
+    },
+  });
+  const deltas = [];
+  const pending = adapter.stream(
+    { messages: request.messages },
+    {
+      on_delta: async (text) => {
+        deltas.push(text);
+        first();
+      },
+    },
+  );
+  await started;
+  assert.deepEqual(deltas, ["Hello "]);
+  assert.equal(adapter.phase, "busy");
+  release();
+  const result = await pending;
+  assert.equal(result.text, "Hello world");
+  assert.equal(result.thinking, undefined);
+  assert.equal(adapter.phase, null);
+  assert.equal((await adapter.status()).adapter_features.streaming, true);
+  const chat = calls.find((call) => call.path === "/api/chat");
+  assert.equal(chat.body.stream, true);
+  assert.equal(chat.body.think, false);
+  assert.equal(chat.headers.cookie, undefined);
+});
+
+test("Ollama aborts stalled streams on cancellation and whole-operation deadline", async (t) => {
+  for (const mode of ["cancel", "deadline"]) {
+    let first;
+    const entered = new Promise((resolve) => { first = resolve; });
+    const { adapter } = await fixture(t, { chat: ({ res }) => {
+      res.writeHead(200, { "Content-Type": "application/x-ndjson" });
+      res.write(JSON.stringify({ model: "fixture:latest", done: false,
+        message: { role: "assistant", content: "Partial" } }) + "\n");
+    } });
+    const controller = new AbortController();
+    const pending = adapter.stream({ messages: request.messages, signal: controller.signal,
+      timeout_ms: mode === "deadline" ? 200 : 2000 }, { on_delta: async () => first() });
+    const rejected = assert.rejects(pending, (error) => error.code ===
+      (mode === "deadline" ? "DEADLINE_EXCEEDED" : "CANCELLED"));
+    await entered;
+    if (mode === "cancel") controller.abort();
+    await rejected;
+    assert.equal(adapter.phase, null);
+  }
+});
+
+test("Ollama rejects incomplete, invalid, oversized and tool-bearing streams", async (t) => {
+  const record = {
+    model: "fixture:latest",
+    done: true,
+    message: { role: "assistant", content: "text" },
+  };
+  for (const body of [
+    "not json\n",
+    JSON.stringify({ ...record, done: false }) + "\n",
+    JSON.stringify({ ...record, model: "other" }) + "\n",
+    JSON.stringify({ error: "private" }) + "\n",
+    JSON.stringify({
+      ...record,
+      message: { role: "assistant", content: "x".repeat(65537) },
+    }) + "\n",
+    JSON.stringify({
+      ...record,
+      message: { role: "assistant", content: "x", tool_calls: [{}] },
+    }) + "\n",
+    JSON.stringify(record) + "\n" + JSON.stringify(record) + "\n",
+  ]) {
+    const { adapter } = await fixture(t, {
+      chat: ({ res }) => {
+        res.writeHead(200, { "Content-Type": "application/x-ndjson" });
+        res.end(body);
+      },
+    });
+    await assert.rejects(
+      adapter.stream(
+        { messages: request.messages },
+        { on_delta: async () => {} },
+      ),
+      (error) =>
+        ["PROTOCOL_ERROR", "UNSUPPORTED_OPERATION"].includes(error.code),
+    );
+    assert.equal(adapter.phase, null);
+  }
+});
+
 test("pinned model digest rejects a changed selection before transmitting generation messages", async (t) => {
   const { adapter, calls } = await fixture(t);
   await assert.rejects(
@@ -237,7 +356,7 @@ test("unsupported fields, schema features, URLs and providers fail explicitly", 
   );
   await assert.rejects(
     adapter.stream(),
-    (error) => error.code === "UNSUPPORTED_OPERATION",
+    (error) => error.code === "INVALID_REQUEST",
   );
   for (const engine of ["llama_cpp", "vllm", "sglang"]) {
     const reserved = create_engine_adapter({ engine });

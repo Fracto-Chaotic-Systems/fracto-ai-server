@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import os from "node:os";
-import { EngineError } from "../engines/errors.js";
+import { EngineError, with_deadline } from "../engines/errors.js";
+import { chat_messages } from "./chat.js";
 import { ENGINE_IDS } from "../engines/contracts.js";
 import {
   fail,
@@ -39,6 +40,7 @@ export class InferenceService {
     this.stopping = false;
     this.broken = false;
     this.active = null;
+    this.chat_active = null;
     this.last_maintenance = now();
     // Never replay an ambiguous generation after a crash or graceful shutdown.
     for (const job of store.all()) {
@@ -86,6 +88,84 @@ export class InferenceService {
   break_storage() {
     this.broken = true;
     this.active?.controller.abort();
+    this.chat_active?.controller.abort();
+  }
+  async chat(body, { signal, on_delta } = {}) {
+    this.available();
+    const messages = chat_messages(body);
+    this.protect(() => {
+      this.resources();
+      if (
+        this.active ||
+        this.chat_active ||
+        this.store.all().some((job) => job.state === "queued")
+      )
+        fail("ENGINE_BUSY", 429);
+    });
+    const controller = new AbortController();
+    const combined = signal
+      ? AbortSignal.any([signal, controller.signal])
+      : controller.signal;
+    const task = with_deadline(
+      async (deadline_signal) => {
+        const request = {
+          messages,
+          max_tokens: 512,
+          temperature: 0.2,
+          timeout_ms: 175000,
+          signal: deadline_signal,
+        };
+        let streamed = "";
+        const result = on_delta
+          ? await this.adapter.stream(request, {
+              on_delta: async (text) => {
+                deadline_signal.throwIfAborted();
+                if (typeof text !== "string")
+                  throw new EngineError("PROTOCOL_ERROR");
+                streamed += text;
+                if (Buffer.byteLength(streamed) > 65536)
+                  throw new EngineError("PROTOCOL_ERROR");
+                if (text) await on_delta(text, deadline_signal);
+              },
+            })
+          : await this.adapter.generate(request);
+        if (on_delta && result.text !== streamed)
+          throw new EngineError("PROTOCOL_ERROR");
+        if (deadline_signal.aborted) throw new EngineError("CANCELLED");
+        this.available();
+        if (
+          typeof result.text !== "string" ||
+          !result.text.trim() ||
+          Buffer.byteLength(result.text) > 64 * 1024
+        )
+          fail("INVALID_OUTPUT", 502);
+        return {
+          contract_version: 1,
+          message: { role: "assistant", content: result.text },
+        };
+      },
+      { signal: combined, timeout_ms: 175000 },
+    );
+    this.chat_active = { controller, task };
+    try {
+      return await task;
+    } catch (error) {
+      if (error instanceof InferenceError) throw error;
+      const code =
+        error instanceof EngineError ? error.code : "ENGINE_UNAVAILABLE";
+      fail(
+        code,
+        code === "ENGINE_BUSY"
+          ? 429
+          : code === "CANCELLED"
+            ? 409
+            : code === "DEADLINE_EXCEEDED"
+              ? 504
+              : 503,
+      );
+    } finally {
+      this.chat_active = null;
+    }
   }
   async submit(body, admission = {}) {
     this.available();
@@ -217,7 +297,7 @@ export class InferenceService {
       concurrency: 1,
       pending_limit: this.pending_limit,
       queued: this.store.all().filter((job) => job.state === "queued").length,
-      running: this.active ? 1 : 0,
+      running: this.active || this.chat_active ? 1 : 0,
     }));
   }
   finish(job, state, error, finished_at = this.now()) {
@@ -237,7 +317,7 @@ export class InferenceService {
       for (const job of queued)
         if (job.deadline_at <= this.now())
           this.finish(job, "expired", "DEADLINE_EXCEEDED");
-      if (this.active) return;
+      if (this.active || this.chat_active) return;
       const next = queued.find((job) => job.state === "queued");
       if (!next) return;
       // Pressure pauses dispatch; queued requests retain their original deadline.
@@ -363,7 +443,9 @@ export class InferenceService {
     this.stopping = true;
     clearInterval(this.timer);
     this.active?.controller.abort();
+    this.chat_active?.controller.abort();
     await this.active?.task;
+    await this.chat_active?.task?.catch(() => {});
     this.store.close();
   }
 }

@@ -29,7 +29,11 @@ engine to the LAN. Native Windows defaults remain loopback-only.
 
 Methods: `health({signal, timeout_ms})`, `list_models({signal, timeout_ms})`,
 `status()`, `generate(request)`, `warmup({signal, timeout_ms})`, `embed()` and
-`stream()`. Embeddings and streaming currently fail with `UNSUPPORTED_OPERATION`.
+`stream(request, {on_delta})`. Ollama streaming emits validated text deltas through
+the awaited callback and returns the normalized final result. It uses the same
+single-flight slot, selected local model, deadline, cancellation, byte and token
+bounds as generation. Streaming schema generation is unsupported. Embeddings
+still fail with `UNSUPPORTED_OPERATION`.
 
 Generation requests allow only `messages`, `schema`, `max_tokens`, `temperature`,
 `signal`, `timeout_ms`, optional `stream:false` and `expected_model_digest`.
@@ -42,11 +46,12 @@ It never selects a different model. Messages contain only
 tokens, with `num_thread:2` for generation and warm-up. Thread settings are not OS
 CPU quotas. Byte limits are admission guards, not exact tokenizer/context-fit
 guarantees. The request service in ../inference uses fixed numeric-only templates
-and a narrower output budget, with no general-purpose prompt API.
+for durable jobs. Its separate ephemeral chat operation accepts bounded text
+history through a machine-authenticated route and the administrator bridge.
 
-Callers must supply only validated non-personal operational/world content. Shape
-validation cannot establish that arbitrary text contains no personal information.
-This library does not authorize user/peer input or expose a raw prompt API.
+Shape validation cannot establish the semantics of arbitrary text. The adapter
+library does not authorize user/peer input; the inference and administrator HTTP
+boundaries own authorization for text chat and fixed operational requests.
 
 The adapter checks the configured model against `/api/tags` and `/api/show` before
 sending any messages. Missing models are not pulled. Cloud model aliases/remote
@@ -71,7 +76,7 @@ not invented measurements. Extra provider fields and thinking/tool payloads
 are not returned. Invalid generated JSON/schema results fail with `INVALID_OUTPUT`.
 
 `adapter_features` describes implementation support, not proof of model quality
-or current availability. Streaming/embeddings are false. Cancellation aborts the
+or current availability. Ollama streaming is true; embeddings remain false. Cancellation aborts the
 request/transport; it does not acknowledge that all backend work has stopped.
 Generation is single-flight per adapter instance, with immediate `ENGINE_BUSY`
 rejection; keep a shared adapter rather than constructing one per request.

@@ -17,7 +17,7 @@ export class OllamaAdapter {
     allow_host_gateway = false,
   } = {}) {
     this.id = "ollama";
-    this.features = FEATURES;
+    this.features = { ...FEATURES, streaming: true };
     this.model = model == null || model === "" ? null : model_id(model);
     this.transport = new EngineTransport({
       base_url,
@@ -221,7 +221,64 @@ export class OllamaAdapter {
   async embed() {
     throw new EngineError("UNSUPPORTED_OPERATION");
   }
-  async stream() {
-    throw new EngineError("UNSUPPORTED_OPERATION");
+  async stream(input, { on_delta } = {}) {
+    if (!input || typeof on_delta !== "function")
+      throw new EngineError("INVALID_REQUEST");
+    const request = generation_request(input);
+    if (request.schema) throw new EngineError("UNSUPPORTED_OPERATION");
+    return this.operation("busy", request, async (signal) => {
+      const selected = await this.selected(signal);
+      if (
+        request.expected_model_digest &&
+        selected.digest !== request.expected_model_digest
+      )
+        throw new EngineError("MODEL_MISMATCH");
+      let text = "",
+        finished = false,
+        final;
+      for await (const record of this.transport.stream("/api/chat", {
+        signal,
+        body: {
+          model: this.model,
+          messages: request.messages,
+          stream: true,
+          keep_alive: 0,
+          options: {
+            num_ctx: 4096,
+            num_thread: 2,
+            num_predict: request.max_tokens,
+            temperature: request.temperature,
+          },
+          ...(selected.thinking ? { think: false } : {}),
+        },
+      })) {
+        if (
+          finished ||
+          record.model !== this.model ||
+          typeof record.done !== "boolean" ||
+          record.message?.role !== "assistant" ||
+          typeof record.message.content !== "string"
+        )
+          throw new EngineError("PROTOCOL_ERROR");
+        if (record.message.tool_calls?.length)
+          throw new EngineError("UNSUPPORTED_OPERATION");
+        text += record.message.content;
+        if (Buffer.byteLength(text) > 65536)
+          throw new EngineError("PROTOCOL_ERROR");
+        if (record.message.content) await on_delta(record.message.content);
+        if (record.done) {
+          finished = true;
+          final = record;
+        }
+      }
+      if (!finished || !text.trim()) throw new EngineError("PROTOCOL_ERROR");
+      return normalized_result(
+        { ...final, message: { role: "assistant", content: text } },
+        {
+          model: this.model,
+          ...selected,
+        },
+      );
+    });
   }
 }

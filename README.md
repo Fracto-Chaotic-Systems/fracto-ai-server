@@ -50,7 +50,11 @@ live datasets are excluded. `GET /distribution/status` reports only counts.
 Process health, Windows host startup benchmarking and local Ollama engine
 provisioning, the adapter, and bounded local inference with SQLite persistence
 are implemented. Machine callers can submit fixed aggregate-only performance
-assessments; regular Fracto workflows do not submit inference automatically.
+assessments. Administrator text chat is implemented through the admin service's
+authenticated bridge, with bounded recent history, transient responses and
+cancellation and incremental streaming. Chat shares local engine capacity with queued inference and does
+not persist transcripts or publish chat artifacts to peers. Regular Fracto
+workflows do not submit inference automatically.
 Fracto compute-campaign scheduling remains planned. Peer identity provisioning,
 explicit certificate trust, scoped mutual-TLS connections and automatic probes
 are implemented; see [peer connections](peers/README.md) for enrollment and rotation.
@@ -94,7 +98,9 @@ health endpoints are public. `/engine/status` is also public and reports only
 allowlisted operational counts, flags and states; it excludes model names,
 prompts, outputs, URLs and provider error messages. Inference requires a separate
 generated local machine token, independent of browser sessions or lab bypass.
-It accepts numeric aggregates and returns enumerated advisory output. Both nginx
+The jobs API accepts numeric aggregates and returns enumerated advisory output;
+`POST /inference/chat` accepts bounded text history and returns assistant text.
+Both nginx
 examples keep inference private to local machine callers.
 
 ## Run and build
