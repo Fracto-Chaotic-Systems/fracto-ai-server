@@ -1,4 +1,5 @@
 import { EngineError } from "./errors.js";
+import { read_json_lines } from "../../../sdk/FractoChatStream.js";
 
 export const local_base_url = (value, allow_host_gateway = false) => {
   try {
@@ -26,6 +27,46 @@ export const local_base_url = (value, allow_host_gateway = false) => {
 };
 
 export class EngineTransport {
+  async *stream(route, { signal, body } = {}) {
+    const response = await this.fetch_impl(`${this.base_url}${route}`, {
+      method: "POST",
+      redirect: "manual",
+      signal,
+      headers: {
+        Accept: "application/x-ndjson",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new EngineError(
+        response.status === 404
+          ? "MODEL_MISSING"
+          : [429, 503].includes(response.status)
+            ? "ENGINE_BUSY"
+            : "ENGINE_UNAVAILABLE",
+      );
+    }
+    if (
+      !/application\/(x-ndjson|json)/i.test(
+        response.headers.get("content-type") || "",
+      )
+    ) {
+      await response.body?.cancel();
+      throw new EngineError("PROTOCOL_ERROR");
+    }
+    try {
+      for await (const record of read_json_lines(response.body, { signal })) {
+        if (Object.hasOwn(record, "error"))
+          throw new EngineError("PROTOCOL_ERROR");
+        yield record;
+      }
+    } catch (error) {
+      if (signal?.aborted || error instanceof EngineError) throw error;
+      throw new EngineError("PROTOCOL_ERROR");
+    }
+  }
   constructor({ base_url, fetch_impl = fetch, allow_host_gateway = false }) {
     this.base_url = local_base_url(base_url, allow_host_gateway);
     this.fetch_impl = fetch_impl;
