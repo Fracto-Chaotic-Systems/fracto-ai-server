@@ -142,7 +142,10 @@ reused. Bounded records/artifacts and SQLite page count bound normal store growt
 Native default: ignored `runtime/inference/` in this repository. Optional
 `FRACTO_AI_DATA_DIR` selects another **dedicated node-owned** local directory.
 Windows disables inherited root permissions and grants the local service identity,
-SYSTEM and Administrators. New files inherit this ACL; no identities leave local
+SYSTEM and Administrators. The helper changes access rules only and preserves
+existing ownership, avoiding an unnecessary ownership-change privilege requirement.
+Use a directory owned by the service account or an approved administrator; the
+helper does not take ownership or elevate. New files inherit this ACL; no identities leave local
 filesystem administration. POSIX directories/files use 0700/0600.
 
 Compose uses `/var/lib/fracto/ai`, separate production `fracto-ai-data` and

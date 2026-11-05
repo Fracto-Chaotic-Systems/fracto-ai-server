@@ -101,5 +101,6 @@ States: `engine_unavailable`, `model_missing` (including no selected model),
 `ready`, `warming`, `busy`, `adapter_unavailable`, or `configuration_error`.
 Busy/warming describe this adapter's own operation, not a global view of other
 Ollama clients. Engine/model failure never changes the service's foundation
-`/healthz` or `/readyz` contract. Inference submission remains a later authenticated,
-bounded service feature; this step exposes no generation route.
+`/healthz` or `/readyz` contract. Authenticated bounded inference submission is
+implemented separately in `../inference/README.md`; this adapter's public status
+route never generates output.

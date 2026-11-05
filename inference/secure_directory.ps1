@@ -4,7 +4,8 @@ $ErrorActionPreference = 'Stop'
 $acl = New-Object System.Security.AccessControl.DirectorySecurity
 $acl.SetAccessRuleProtection($true, $false)
 $owner = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
-$acl.SetOwner($owner)
+# Changing ownership requires permissions not needed to secure a service-owned
+# directory. Preserve the owner and write only the protected access rules.
 $sids = @($owner, (New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')), (New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')))
 foreach ($sid in $sids) {
   $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')

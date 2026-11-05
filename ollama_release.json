@@ -4,5 +4,9 @@
   "windows_amd64": {
     "url": "https://github.com/ollama/ollama/releases/download/v0.40.14/ollama-windows-amd64.zip",
     "sha256": "65d68cade6cf6375f398b518224f8c8a15e062387f38cf477abfc848de7e7e29"
+  },
+  "windows_arm64": {
+    "url": "https://github.com/ollama/ollama/releases/download/v0.40.14/ollama-windows-arm64.zip",
+    "sha256": "df8a4e954587ac65ba52ec26b453490a21cd58f80b55f75cf0d706f1506764a8"
   }
 }

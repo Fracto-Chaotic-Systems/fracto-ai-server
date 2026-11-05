@@ -1,8 +1,14 @@
 # Windows-local Ollama installation
 
 The Windows pipeline provisions the official standalone Ollama **0.40.14**
-package and runs `ollama serve` under an independent hidden host controller.
+package for native x64 or ARM64 Windows and runs `ollama serve` under an independent hidden host controller.
 The version-specific URL and SHA-256 are pinned in `ollama_release.json`.
+The installer selects `windows_amd64` or `windows_arm64` from the native OS
+architecture, including when PowerShell runs under emulation. Both packages use
+the same versioned executable and model-storage paths. New installation records
+include the architecture; older records are treated as x64. An existing managed
+installation for a different architecture is preserved and requires an explicit
+migration rather than being overwritten.
 No tray application, global PATH change, user environment change, automatic
 upgrade or new Windows boot task is installed.
 
@@ -67,7 +73,7 @@ The engine was installed and its loopback API started on the connected 32 GB
 development host. This does not provision the other lab hosts remotely; they
 receive the same pinned setup through their next standard Windows Fracto startup
 after deployment of these changes. First installation needs Internet access,
-curl.exe, at least 10 GiB free disk and supported x64 Windows. Subsequent starts
+curl.exe, at least 10 GiB free disk and supported x64 or ARM64 Windows. Subsequent starts
 reuse the installation without downloading the package again.
 
 No model is pulled or loaded automatically. The current host has limited available
@@ -77,7 +83,8 @@ model profile in FIRST_STAGE.md is not an installed or tested inference capabili
 
 The AI service's Ollama adapter is implemented; see `engines/README.md`. The
 foundation health `capabilities` list remains empty for compatibility and no
-generation endpoint is exposed. `GET /engine/status` separately reports adapter
+general-purpose prompt endpoint is exposed. The machine-authorized numeric-only
+inference API is implemented in `inference/README.md`. `GET /engine/status` separately reports adapter
 support and availability. Ollama stays bound to the Windows host's loopback
 interface. Docker Compose opts into the verified same-machine Docker Desktop
 host-gateway transport; native Windows defaults to loopback. `localhost` inside
@@ -98,6 +105,23 @@ The installer refuses to overwrite a different recorded managed release during
 ordinary startup. It verifies the official archive before extracting into a new
 version directory. An incomplete/conflicting version directory is preserved for
 inspection rather than recursively deleting or overwriting it.
+
+### First installation on ARM64
+
+From this repository on the target Windows host, run:
+
+```powershell
+powershell.exe -NoProfile -File .\install_ollama_windows.ps1
+powershell.exe -NoProfile -File .\start_ollama_windows.ps1
+Get-Content .\runtime\ollama\status.json
+```
+
+The first command verifies and installs the architecture-specific pinned package;
+the second starts the independent hidden controller. Once status is `ready`,
+inspect `/api/version` and `/api/tags` as above. Model download and selection remain
+explicit separate steps. ARM64 installer selection is tested with disposable
+installation fixtures; execution, acceleration and real-model performance still
+require validation on the target ARM64 hardware.
 
 ## Sources
 

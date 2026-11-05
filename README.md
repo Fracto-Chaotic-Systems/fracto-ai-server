@@ -65,6 +65,17 @@ for Node watch mode. From the Fracto root, the supported full-stack entry point
 is `npm start`; an isolated supervised launch is
 `node scripts/launch_service.js fracto-ai-server`.
 
+Persist the native installation's model selection in this repository's ignored
+`.env`, for example `FRACTO_AI_MODEL=qwen2.5:7b-instruct-q4_K_M`. `npm start`,
+`npm run dev` and the root service launcher load this file when present; inherited
+process environment values take precedence. Missing `.env` remains supported.
+Direct `node index.js` does not load it; use `node --env-file-if-exists=.env index.js`.
+For Compose deployments, set the same model tag in the Fracto root's ignored
+`.env`; Compose forwards it to the service. Keep engine URL defaults unchanged:
+native uses loopback and Compose uses the explicitly enabled host gateway.
+Neither saved selection downloads a model. Restart/recreate the service after
+changing it. These files are local configuration and are excluded from Git/images.
+
 `FRACTO_AI_PORT` selects a TCP port (1–65535), default 3007; development Compose
 sets 3107. Native listening defaults to loopback; Compose explicitly binds all
 container interfaces and publishes the AI port on host loopback. Both nginx
