@@ -11,6 +11,42 @@ one node per request. See [the adapter contract](engines/README.md).
 
 ## Current stage
 
+Persistent local reference knowledge is implemented in [knowledge/README.md](knowledge/README.md):
+explicit local document import, immutable revisions/provenance, SQLite full-text
+search and source retirement. Startup initializes it independently of inference;
+the existing private AI volume retains it. `GET /knowledge/status` returns only
+allowlisted counts/availability. Document contents are local CLI-only and are not
+sent to inference or peers. The first [infrastructure reference skill](infrastructure/README.md)
+answers local questions with bounded, exact source passages and verifiable citations.
+It is extractive retrieval, requires no model, and does not inspect live systems
+or execute actions. Startup idempotently seeds four reviewed infrastructure
+references; retired or locally managed sources remain under local control.
+The [versioned skill registry](skills/README.md) now persists immutable definitions,
+examples, evaluation cases and receipts. Only an evaluated, explicitly active
+release can run through the local skill CLI; startup bootstraps the shipped
+infrastructure release once and preserves later selections/deactivation.
+Registered procedures are inert data, with execution restricted to shipped
+read-only handlers. Model synthesis remains later work.
+
+The [environment/asset data-quality skill](data_quality/README.md) scans approved
+local snapshots for duplicate/missing/ambiguous references and content patterns.
+It reports complete counts with bounded details and non-applied, version-pinned
+deduplication proposals. It opens no live database or model, and follows the
+registry's evaluation, activation and disable gates. Live corrections remain later work.
+
+Controlled corrections are implemented for explicitly registered local snapshot
+datasets in the [data service](../fracto-data-server/corrections/README.md), with
+independent validation, explicit approval, atomic audit and version-checked rollback.
+The AI CLI exports a selected proposal only; its skill retains read-only permissions.
+Existing live MySQL tables still require a defined owner mapping before corrections.
+
+[Peer distribution](distribution/README.md) now shares explicitly reviewed
+knowledge revisions and immutable skill definitions under separate directional
+scopes. Automatic pulls retain untrusted candidates only; local adoption is
+explicit, and skill evaluation/activation remains local. Imported content is not
+automatically relayed. Credentials, model weights, corrections, approvals and
+live datasets are excluded. `GET /distribution/status` reports only counts.
+
 Process health, Windows host startup benchmarking and local Ollama engine
 provisioning, the adapter, and bounded local inference with SQLite persistence
 are implemented. Machine callers can submit fixed aggregate-only performance
@@ -47,6 +83,9 @@ bounds, recovery, deployment, retention and backup instructions.
 | `GET /engine/status` | Versioned engine capabilities/availability; engine failure never changes foundation readiness |
 | `/inference/*`       | Separate machine-token-authorized submission/status/result/cancellation                       |
 | `GET /peers/status`  | Aggregate peer availability/counts; no identities, endpoints or credentials                   |
+| `GET /knowledge/status` | Local store availability and counts; no document content or source labels |
+| `GET /skills/status` | Registry availability and counts; no definitions, examples or questions |
+| `GET /distribution/status` | Candidate catalog availability and counts; no text or identities |
 
 Health responses contain only `contract_version`, `service`, `status`, `stage`,
 `capabilities`, and `uptime_seconds`, with `Cache-Control: no-store`. Unknown
@@ -99,6 +138,11 @@ or fleet dependency is available.
 ## Files and ownership
 
 - `app.js`: side-effect-free app factory, health contract, port validation.
+- `knowledge/`: durable curated documents, provenance, full-text index, local CLI and startup lifecycle.
+- `infrastructure/`: read-only reference skill, cited passages and reviewed startup references.
+- `skills/`: immutable skill releases, evaluation/activation and allowlisted local dispatch.
+- `data_quality/`: bounded environment/asset snapshot scans, findings and correction proposals.
+- `distribution/`: scoped peer publication, candidate imports and explicit local adoption.
 - `index.js`: listener startup and bounded shutdown.
 - `app.test.js`: HTTP contract, no identity echo, unsupported actions, port validation.
 - `package.json` / `package-lock.json`: independent scripts and locked dependencies.
@@ -134,7 +178,7 @@ or fleet dependency is available.
 - `delegation/`: explicit selected-peer inference, scoped local/peer APIs, model
   digest guards, durable origin receipts, one-hop admission, cancellation and
   unknown-outcome reconciliation. `delegation.test.js` covers real TLS and failures.
-- `.env.example`: non-secret native adapter configuration, with no default model.
+- `.env.example`: non-secret native adapter configuration with the selected development model as an example; copying it does not download a model.
 - `.gitignore`: local dependencies, credentials and future runtime artifacts.
 - `LICENSE`: the license from the repository's initial commit, preserved.
 - `.github/workflows/validate.yml`: independent Node 22 validation on pushes and pull requests.

@@ -14,6 +14,7 @@ import { create_peer_server, tls_settings } from "./server.js";
 import { probe_peer } from "./client.js";
 import { ExchangeRuntime } from "../exchange/runtime.js";
 import { DelegationRuntime } from "../delegation/runtime.js";
+import { DistributionRuntime } from "../distribution/runtime.js";
 
 export class PeerRuntime {
   constructor({
@@ -99,6 +100,7 @@ export class PeerRuntime {
       this.signature = signature;
       try {
         this.exchange?.update_peers(this.peers);
+        this.distribution?.update_peers(this.peers);
       } catch {
         /* Exchange failures do not affect peer status. */
       }
@@ -137,6 +139,20 @@ export class PeerRuntime {
         this.delegation_retry_at = Date.now() + 30000;
       }
     }
+    if (
+      !this.distribution &&
+      (!this.distribution_retry_at || this.distribution_retry_at <= Date.now())
+    ) {
+      try {
+        this.distribution = new DistributionRuntime(
+          path.join(this.directory, "distribution"),
+          identity.node_id,
+        );
+        this.distribution.update_peers(this.peers);
+      } catch {
+        this.distribution_retry_at = Date.now() + 30000;
+      }
+    }
     try {
       this.exchange?.tick();
     } catch {
@@ -148,6 +164,7 @@ export class PeerRuntime {
         get_peers: () => this.peers,
         get_exchange: () => this.exchange?.store || null,
         get_delegation: () => this.delegation,
+        get_distribution: () => this.distribution?.store || null,
       });
       this.transport = transport;
       await new Promise((resolve, reject) => {
@@ -200,6 +217,22 @@ export class PeerRuntime {
           (this.observations.get(b.node_id)?.next_at || 0),
       )[0];
     const sharing = this.exchange?.next_peer(this.peers);
+    const distribution = this.distribution?.next(this.peers);
+    if (
+      distribution &&
+      (!sharing || distribution.at < this.exchange.due_at(sharing)) &&
+      (!peer ||
+        distribution.at < (this.observations.get(peer.node_id)?.next_at || 0))
+    ) {
+      const controller = new AbortController();
+      const task = this.distribution
+        .sync(this.identity, distribution, controller.signal)
+        .finally(() => {
+          if (this.probe?.controller === controller) this.probe = null;
+        });
+      this.probe = { controller, task };
+      return;
+    }
     if (
       sharing &&
       (!peer ||
@@ -257,6 +290,7 @@ export class PeerRuntime {
     await this.probe?.task;
     await this.delegation?.close();
     await this.exchange?.close();
+    this.distribution?.close();
     if (this.transport) {
       this.transport.disconnect();
       await new Promise((resolve) => this.transport.server.close(resolve));

@@ -4,6 +4,7 @@ import { certificate_info } from "./identity.js";
 import { peer_route } from "./routes.js";
 import { ArtifactError } from "../exchange/contracts.js";
 import { handle_delegation } from "../delegation/peer_http.js";
+import { DistributionError } from "../distribution/contracts.js";
 
 export const tls_settings = (identity, peers) => ({
   key: identity.private_key,
@@ -34,6 +35,7 @@ export const create_peer_server = ({
   get_peers,
   get_exchange = () => null,
   get_delegation = () => null,
+  get_distribution = () => null,
 }) => {
   const sockets = new Set();
   const buckets = new Map();
@@ -130,6 +132,26 @@ export const create_peer_server = ({
           }),
         );
         return;
+      }
+      if (route.type.startsWith("distribution_")) {
+        try {
+          const distribution = get_distribution();
+          if (!distribution)
+            return send(503, { error: "DISTRIBUTION_UNAVAILABLE" });
+          return send(
+            200,
+            route.type === "distribution_manifest"
+              ? distribution.manifest(route.kind, route.epoch, route.cursor)
+              : distribution.blob(route.kind, route.digest),
+          );
+        } catch (error) {
+          return send(error instanceof DistributionError ? error.status : 503, {
+            error:
+              error instanceof DistributionError
+                ? error.code
+                : "DISTRIBUTION_UNAVAILABLE",
+          });
+        }
       }
       if (!exchange) return send(503, { error: "EXCHANGE_UNAVAILABLE" });
       try {

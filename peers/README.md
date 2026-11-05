@@ -80,7 +80,12 @@ servers/fracto-ai-server/peers/cli.js status` (or `fracto-dev` with both Compose
    through subsequent startups without operator commands. Ordinary HTTP
    `/peers/status` exposes only aggregate state/counts and an expiring-cert flag.
 
-Scopes are `status:read`, `artifacts:exchange`, `inference:delegate`. Status and
+Scopes are `status:read`, `artifacts:exchange`, `inference:delegate`,
+`knowledge:exchange` and `skills:exchange`. The last two grant independent,
+candidate-only distribution; see ../distribution/README.md for explicit
+publication review, resumable pulls and local adoption. Upgrade both peers before
+granting these new scopes. Existing grants are unchanged and do not share
+knowledge or skill definitions. Status and
 bounded artifact/metadata GET routes are implemented; see ../exchange/README.md.
 Existing status-only grants share no artifacts or delegate work. The separate
 `inference:delegate` grant enables fixed whole-request submission/status/cancel

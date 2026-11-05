@@ -29,6 +29,27 @@ operations/game deliverables below remain planned.
 
 ## Purpose and boundaries
 
+The persistent knowledge foundation is implemented in [knowledge/README.md](knowledge/README.md).
+It retains explicitly imported local documents with immutable revisions and
+bounded full-text retrieval independently of inference-history retention. It
+now supports the first [read-only infrastructure reference skill](infrastructure/README.md),
+which extracts cited passages without model inference. Four reviewed references
+seed automatically. The [versioned skill registry](skills/README.md) stores
+procedures, schemas, examples and evaluation cases with gated activation and
+allowlisted execution. Arbitrary source refresh, model reasoning and corrections
+to live application tables still require separate contracts. The first
+[data-quality skill](data_quality/README.md) now scans approved local environment/
+asset snapshots and emits bounded findings and non-applied deduplication proposals;
+live export remains future work. The data service now owns controlled corrections
+for explicitly registered local snapshot datasets, with independent validation,
+plan approval, atomic audit and monotonic-revision rollback. Existing live MySQL
+tables are not mapped into this protocol; see its corrections/README.md.
+Knowledge/skill [peer distribution](distribution/README.md) is now implemented
+with explicit publication review, separate scopes, durable candidate catalogs,
+bounded resumable pulls and local-only adoption/evaluation/activation. This does
+not implement fleet authority, automatic learning, model training or distribution
+of correction approvals/data. Actual two-node lab validation remains paused.
+
 Initially coordinate high-volume jobs, monitor server performance, and synchronize
 operational data across many Fracto installations. Later support an AI game
 director, potentially the main source of world events and decisions.

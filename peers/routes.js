@@ -3,6 +3,42 @@ import { digest_id, integer } from "../exchange/contracts.js";
 
 /** Every network path and scope is owned here, never a request-supplied URL. */
 export const peer_route = (route) => {
+  if (typeof route === "string" && route.length <= 200) {
+    const manifest =
+      /^\/peer\/v1\/distribution\/(knowledge|skill)\/manifest\/([^/]+)\/(0|[1-9]\d{0,15})$/.exec(
+        route,
+      );
+    if (
+      manifest &&
+      (manifest[2] === "start" || uuid(manifest[2])) &&
+      integer(Number(manifest[3])) &&
+      (manifest[2] !== "start" || manifest[3] === "0")
+    )
+      return {
+        type: "distribution_manifest",
+        kind: manifest[1],
+        scope:
+          manifest[1] === "knowledge"
+            ? "knowledge:exchange"
+            : "skills:exchange",
+        max_bytes: 8192,
+        epoch: manifest[2],
+        cursor: Number(manifest[3]),
+      };
+    const blob =
+      /^\/peer\/v1\/distribution\/(knowledge|skill)\/blob\/([a-f0-9]{64})$/.exec(
+        route,
+      );
+    if (blob)
+      return {
+        type: "distribution_blob",
+        kind: blob[1],
+        scope:
+          blob[1] === "knowledge" ? "knowledge:exchange" : "skills:exchange",
+        max_bytes: 196608,
+        digest: blob[2],
+      };
+  }
   if (route === "/peer/v1/delegations/capabilities")
     return {
       type: "delegation_capabilities",

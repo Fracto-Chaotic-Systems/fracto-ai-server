@@ -9,6 +9,8 @@ export const SCOPES = Object.freeze([
   "status:read",
   "artifacts:exchange",
   "inference:delegate",
+  "knowledge:exchange",
+  "skills:exchange",
 ]);
 export const endpoint_url = (value) => {
   if (typeof value !== "string" || value.length > 512) reject();
@@ -67,7 +69,7 @@ export const validate_trust = (
     for (const direction of ["inbound_scopes", "outbound_scopes"]) {
       if (
         !Array.isArray(peer[direction]) ||
-        peer[direction].length > 3 ||
+        peer[direction].length > SCOPES.length ||
         new Set(peer[direction]).size !== peer[direction].length ||
         peer[direction].some((scope) => !SCOPES.includes(scope))
       )

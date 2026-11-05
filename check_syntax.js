@@ -9,6 +9,11 @@ const source = [
   path.join(import.meta.dirname, "peers"),
   path.join(import.meta.dirname, "exchange"),
   path.join(import.meta.dirname, "delegation"),
+  path.join(import.meta.dirname, "knowledge"),
+  path.join(import.meta.dirname, "infrastructure"),
+  path.join(import.meta.dirname, "skills"),
+  path.join(import.meta.dirname, "data_quality"),
+  path.join(import.meta.dirname, "distribution"),
 ];
 let checked = 0;
 for (const directory of source) {

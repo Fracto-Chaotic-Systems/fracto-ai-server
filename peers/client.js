@@ -120,9 +120,15 @@ export const peer_request = async ({
             return failure("SCOPE_DENIED");
           if (!delegation && response.statusCode === 429)
             return failure("PEER_BUSY");
-          if (response.statusCode === 409 && descriptor.type === "manifest")
+          if (
+            response.statusCode === 409 &&
+            ["manifest", "distribution_manifest"].includes(descriptor.type)
+          )
             return failure("RESNAPSHOT_REQUIRED");
-          if (response.statusCode === 404 && descriptor.type === "blob")
+          if (
+            response.statusCode === 404 &&
+            ["blob", "distribution_blob"].includes(descriptor.type)
+          )
             return failure("RESNAPSHOT_REQUIRED");
           if (
             (!delegation
