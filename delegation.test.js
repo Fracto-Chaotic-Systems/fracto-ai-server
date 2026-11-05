@@ -435,15 +435,13 @@ test("confirmed rejection is final; outgoing capacity and prepared cancellation 
 });
 
 test("running cancellation stays on the accepting peer and cannot publish a late success", async (t) => {
-  const { service } = source(t, {
-    generate: ({ signal }) =>
-      new Promise((resolve, reject) =>
-        signal.addEventListener(
-          "abort",
-          () => reject(new EngineError("CANCELLED")),
-          { once: true },
-        ),
-      ),
+  let release;
+  const { service, state } = source(t, {
+    // Deliberately ignore abort: the service must discard an adapter's late success.
+    generate: () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
   });
   const receiver = new DelegationReceiver({
     node_id: b.node_id,
@@ -453,17 +451,47 @@ test("running cancellation stays on the accepting peer and cannot publish a late
   const fixture = origin(t, { request: transport(receiver, trace) });
   const id = fixture.value.submit(request()).request_id;
   await step(fixture.value);
+  const accepted = fixture.value.inspect(id);
+  assert.equal(
+    accepted.state,
+    "accepted",
+    JSON.stringify({ state: accepted.state, error: accepted.error }),
+  );
   service.tick();
-  fixture.value.cancel(id);
-  await step(fixture.value);
-  await service.active?.task;
+  const running = service.active;
+  assert.ok(running);
+  assert.equal(state.calls, 1);
+  assert.equal(receiver.inspect(a.node_id, id).state, "running");
+  try {
+    fixture.value.cancel(id);
+    await step(fixture.value);
+    assert.equal(receiver.inspect(a.node_id, id).state, "cancelling");
+  } finally {
+    release({
+      engine: "ollama",
+      engine_version: "0.40.14",
+      model_digest: digest,
+      structured: {
+        severity: "normal",
+        reason: "normal",
+        recommendation: "observe",
+      },
+      usage: { input_tokens: 40, output_tokens: 20 },
+    });
+    await running.task;
+  }
   await step(fixture.value);
   assert.equal(fixture.value.inspect(id).state, "cancelled");
+  assert.equal(receiver.inspect(a.node_id, id).state, "cancelled");
+  assert.equal(service.store.all()[0].result_hash, null);
+  assert.equal(state.calls, 1);
   assert.throws(() => fixture.value.inspect(id, true));
   assert.equal(
     trace.filter((item) => item.route === "/peer/v1/delegations").length,
     1,
   );
+  assert.ok(trace.some((item) => item.route.endsWith("/cancel")));
+  assert.ok(trace.every((item) => item.peer === b.node_id));
 });
 
 test("invalid or mismatched remote results are discarded without storing private response fields", async (t) => {
@@ -637,4 +665,68 @@ test("a crash with a persisted submission intent recovers as unknown and queries
   await step(fixture.value);
   assert.deepEqual(trace, ["GET"]);
   assert.equal(fixture.value.inspect(id).reconciling, true);
+});
+
+test("delegation refreshes remaining budget after durable submission intent", async (t) => {
+  let now = Date.now();
+  t.mock.method(Date, "now", () => now);
+  const { service } = source(t);
+  const receiver = new DelegationReceiver({
+    node_id: b.node_id,
+    source: () => service,
+  });
+  const trace = [];
+  const fixture = origin(t, { request: transport(receiver, trace) });
+  const id = fixture.value.submit(request()).request_id;
+  const deadline = fixture.value.inspect(id).deadline_at;
+  const save = fixture.value.store.save.bind(fixture.value.store);
+  let delayed = false;
+  fixture.value.store.save = (row) => {
+    save(row);
+    if (row.state === "submitting" && !delayed) {
+      delayed = true;
+      now += 6000;
+    }
+  };
+  await step(fixture.value);
+  const receipt = fixture.value.inspect(id);
+  assert.equal(
+    receipt.state,
+    "accepted",
+    JSON.stringify({ state: receipt.state, error: receipt.error }),
+  );
+  assert.equal(receipt.deadline_at, deadline);
+  assert.equal(receiver.inspect(a.node_id, id).deadline_at, deadline);
+  assert.equal(
+    trace.filter((item) => item.route === "/peer/v1/delegations").length,
+    1,
+  );
+});
+
+test("delegation expiring during durable intent persistence never sends generation", async (t) => {
+  let now = Date.now();
+  t.mock.method(Date, "now", () => now);
+  const { service, state } = source(t);
+  const receiver = new DelegationReceiver({
+    node_id: b.node_id,
+    source: () => service,
+  });
+  const trace = [];
+  const fixture = origin(t, { request: transport(receiver, trace) });
+  const id = fixture.value.submit(request()).request_id;
+  const deadline = fixture.value.inspect(id).deadline_at;
+  const save = fixture.value.store.save.bind(fixture.value.store);
+  fixture.value.store.save = (row) => {
+    save(row);
+    if (row.state === "submitting") now = deadline + 1;
+  };
+  await step(fixture.value);
+  assert.equal(fixture.value.inspect(id).state, "expired");
+  assert.equal(fixture.value.inspect(id).deadline_at, deadline);
+  assert.equal(fixture.value.inspect(id).error, "DEADLINE_EXCEEDED");
+  assert.equal(trace.length, 0);
+  assert.equal(service.store.all().length, 0);
+  assert.equal(state.calls, 0);
+  await step(fixture.value);
+  assert.equal(trace.length, 0);
 });

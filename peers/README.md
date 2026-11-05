@@ -174,3 +174,10 @@ the actual 48/64 GB lab installations still need approved endpoints and enrollme
 Scoped artifact exchange is implemented in ../exchange and explicit one-hop
 whole-request delegation in ../delegation. The actual lab nodes still require
 deployment, explicit grants, approved models and real-model measurements.
+
+The HTTP bind-failure regression starts the real service asynchronously. It allows
+up to 60 seconds for cold parallel initialization, then requires exit within
+15 seconds after the bind-error marker. It still requires exit code 1, verifies
+the expected listener failure and checks that the peer port is reusable. All
+inference, peer, knowledge and skill stores are isolated under its temporary
+directory; it never disables the peer runtime to avoid the cleanup check.
