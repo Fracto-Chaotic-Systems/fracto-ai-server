@@ -177,10 +177,11 @@ const step = async (runtime) => {
   runtime.tick();
   await runtime.active?.task;
 };
-const wait_for = async (check) => {
+const wait_for = async (check, describe = () => ({})) => {
   const end = Date.now() + 10000;
   while (!check()) {
-    if (Date.now() > end) assert.fail("condition timed out");
+    if (Date.now() > end)
+      assert.fail(`condition timed out: ${JSON.stringify(describe())}`);
     await new Promise((r) => setTimeout(r, 20));
   }
 };
@@ -545,6 +546,25 @@ test("real mTLS delegates an entire request to one executor; machine authorizati
     query_interval_ms: 500,
     min_peer_interval_ms: 500,
   });
+  const describe = (id, stage) => {
+    const receipt = fixture.value.inspect(id);
+    return {
+      stage,
+      state: receipt.state,
+      error: receipt.error,
+      remote_state: receipt.remote_state,
+      reconciling: receipt.reconciling,
+      origin_generations: first.state.calls,
+      executor_generations: second.state.calls,
+      executor_jobs: second.service.store
+        .all()
+        .map((job) => ({
+          state: job.state,
+          error: job.error,
+          attempt_count: job.attempt_count,
+        })),
+    };
+  };
   const app = create_app({
     inference: first.service,
     get_delegation: () => fixture.value,
@@ -576,6 +596,7 @@ test("real mTLS delegates an entire request to one executor; machine authorizati
     const receipt = await response.json();
     await wait_for(
       () => fixture.value.inspect(receipt.request_id).state === "completed",
+      () => describe(receipt.request_id, "initial_completion"),
     );
     assert.equal(first.state.calls, 0);
     assert.equal(second.state.calls, 1);
@@ -608,11 +629,13 @@ test("real mTLS delegates an entire request to one executor; machine authorizati
     const ambiguous = fixture.value.submit(request());
     await wait_for(
       () => fixture.value.inspect(ambiguous.request_id).state === "unknown",
+      () => describe(ambiguous.request_id, "lost_acknowledgement"),
     );
     assert.equal(second.service.store.all().length, 2);
     await second.reopen();
     await wait_for(
       () => fixture.value.inspect(ambiguous.request_id).state === "completed",
+      () => describe(ambiguous.request_id, "recovered_completion"),
     );
     assert.equal(second.state.calls, 2);
     assert.equal(second.service.store.all().length, 2);

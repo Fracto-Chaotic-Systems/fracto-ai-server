@@ -79,17 +79,17 @@ model is still required for generation; no model is installed or selected by
 startup. See [local inference](inference/README.md) for APIs, authorization,
 bounds, recovery, deployment, retention and backup instructions.
 
-| Endpoint             | Behavior                                                                                      |
-| -------------------- | --------------------------------------------------------------------------------------------- |
-| `GET /`              | Health response; compatible with ordinary Fracto service probes                               |
-| `GET /healthz`       | Process liveness, HTTP 200                                                                    |
-| `GET /readyz`        | Foundation readiness, HTTP 200                                                                |
-| `GET /engine/status` | Versioned engine capabilities/availability; engine failure never changes foundation readiness |
-| `/inference/*`       | Separate machine-token-authorized submission/status/result/cancellation                       |
-| `GET /peers/status`  | Aggregate peer availability/counts; no identities, endpoints or credentials                   |
-| `GET /knowledge/status` | Local store availability and counts; no document content or source labels |
-| `GET /skills/status` | Registry availability and counts; no definitions, examples or questions |
-| `GET /distribution/status` | Candidate catalog availability and counts; no text or identities |
+| Endpoint                   | Behavior                                                                                      |
+| -------------------------- | --------------------------------------------------------------------------------------------- |
+| `GET /`                    | Health response; compatible with ordinary Fracto service probes                               |
+| `GET /healthz`             | Process liveness, HTTP 200                                                                    |
+| `GET /readyz`              | Foundation readiness, HTTP 200                                                                |
+| `GET /engine/status`       | Versioned engine capabilities/availability; engine failure never changes foundation readiness |
+| `/inference/*`             | Separate machine-token-authorized submission/status/result/cancellation                       |
+| `GET /peers/status`        | Aggregate peer availability/counts; no identities, endpoints or credentials                   |
+| `GET /knowledge/status`    | Local store availability and counts; no document content or source labels                     |
+| `GET /skills/status`       | Registry availability and counts; no definitions, examples or questions                       |
+| `GET /distribution/status` | Candidate catalog availability and counts; no text or identities                              |
 
 Health responses contain only `contract_version`, `service`, `status`, `stage`,
 `capabilities`, and `uptime_seconds`, with `Cache-Control: no-store`. Unknown
@@ -105,7 +105,13 @@ examples keep inference private to local machine callers.
 
 ## Run and build
 
-From this directory: `npm ci`, `npm run check`, then `npm start`. Use `npm run dev`
+From this directory: `npm ci`, `npm run check`, then `npm start`. AI checks run
+through `npm test` with at most two test files concurrently. This bounds competing
+SQLite FULL-synchronous writes and certificate work during builds alongside a live
+Fracto stack; tests within each file retain their usual ordering. Production peer
+and inference deadlines are unchanged. mTLS wait failures include allowlisted
+receipt/job states and errors, never credentials or request contents.
+Use `npm run dev`
 for Node watch mode. From the Fracto root, the supported full-stack entry point
 is `npm start`; an isolated supervised launch is
 `node scripts/launch_service.js fracto-ai-server`.
