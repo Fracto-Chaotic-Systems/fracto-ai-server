@@ -142,6 +142,12 @@ Lost replies, timeouts, malformed receipts and storage errors after possible
 acceptance produce `unknown`, never an automatic retry or different executor.
 Restarting with `submitting` also becomes unknown, even if no bytes may have left.
 Only genuinely unsent `prepared` work can make its first submission after restart.
+Before sending, the origin refreshes the remaining transit budget after its durable
+intent write and identity lookup. Storage latency therefore consumes the original
+budget without being misreported as peer clock skew. The original absolute
+deadline and stable request hash never change; if less than 100 ms remains, the
+origin records an expired unsent request and makes no generation POST. Actual
+clock/transit skew still has the existing five-second bound.
 
 The origin automatically reconciles by GET against the same logical peer/request.
 A valid receipt confirms execution ownership and eventually its result or terminal
@@ -215,5 +221,8 @@ Validation uses synthetic aggregates and fake model output over real mTLS. Tests
 cover one-host execution, no origin generation, scope separation, queue saturation,
 digest changes, deadlines, cancellation, replay/conflict, scoped status, lost replies,
 origin/receiver restart, post-commit acknowledgement failure and malformed provenance.
+Controlled-clock regressions cover a slow durable intent write and expiry before
+transmission. The running-cancellation test first proves acceptance/execution, then
+returns a successful adapter result after cancellation to verify it is discarded.
 Actual 48/64 GB lab deployment/enrollment, model provisioning and performance
 measurements remain pending; step 8 proves that hardware milestone.

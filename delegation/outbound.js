@@ -64,8 +64,23 @@ export const perform = async (runtime, row, signal) => {
       route += "/cancel";
       method = "POST";
     }
+    const identity = runtime.identity();
+    if (posting) {
+      // FULL-synchronous intent persistence can consume the clock-skew window.
+      // Refresh only the transit budget; the original deadline/hash stay fixed.
+      const remaining_ms = Math.min(
+        body.remaining_ms,
+        row.deadline_at - Date.now(),
+      );
+      if (remaining_ms < 100) {
+        finish(row, "expired", "DEADLINE_EXCEEDED");
+        runtime.store.save(row);
+        return;
+      }
+      body = wire_request({ ...body, remaining_ms }, row.origin_node_id);
+    }
     const response = await runtime.request({
-      identity: runtime.identity(),
+      identity,
       peer,
       signal,
       route,

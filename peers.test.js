@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import https from "node:https";
 import net from "node:net";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { once } from "node:events";
 import test from "node:test";
 import { create_app } from "./app.js";
@@ -510,12 +510,14 @@ test("HTTP bind failure closes the peer runtime and exits rather than leaving a 
   t.after(() => new Promise((resolve) => occupied.close(resolve)));
   const peer_port = reservation.address().port;
   await new Promise((resolve) => reservation.close(resolve));
-  const child = spawnSync(process.execPath, ["index.js"], {
+  const child = spawn(process.execPath, ["index.js"], {
     cwd: import.meta.dirname,
     env: {
       ...process.env,
       FRACTO_AI_DATA_DIR: data,
       FRACTO_AI_PEER_DATA_DIR: path.join(data, "peers"),
+      FRACTO_AI_KNOWLEDGE_DIR: path.join(data, "knowledge"),
+      FRACTO_AI_SKILL_DIR: path.join(data, "skills"),
       FRACTO_AI_PORT: String(occupied.address().port),
       FRACTO_AI_LISTEN_HOST: "127.0.0.1",
       FRACTO_AI_PEERS_ENABLED: "true",
@@ -523,11 +525,57 @@ test("HTTP bind failure closes the peer runtime and exits rather than leaving a 
       FRACTO_AI_PEER_LISTEN_HOST: "127.0.0.1",
       FRACTO_OLLAMA_ENABLED: "false",
     },
-    timeout: 5000,
-    encoding: "utf8",
     windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
   });
-  assert.equal(child.error, undefined);
-  assert.equal(child.status, 1);
-  assert.match(child.stderr, /could not open its listener/);
+  let output = "",
+    error_output = "",
+    timeout_phase = null,
+    shutdown_timer;
+  const exited = once(child, "close");
+  exited.catch(() => {});
+  // Parallel cold startup includes durable knowledge/skill/identity initialization.
+  // Once the bind error is observed, cleanup still has its own strict deadline.
+  const startup_timer = setTimeout(() => {
+    timeout_phase = "startup did not reach the occupied HTTP listener";
+    child.kill("SIGKILL");
+  }, 60000);
+  child.stdout.on("data", (chunk) => {
+    output = (output + chunk).slice(-65536);
+  });
+  child.stderr.on("data", (chunk) => {
+    error_output = (error_output + chunk).slice(-65536);
+    if (!shutdown_timer && /could not open its listener/.test(error_output)) {
+      clearTimeout(startup_timer);
+      shutdown_timer = setTimeout(() => {
+        timeout_phase = "runtime cleanup did not exit after HTTP bind failure";
+        child.kill("SIGKILL");
+      }, 15000);
+    }
+  });
+  t.after(async () => {
+    clearTimeout(startup_timer);
+    clearTimeout(shutdown_timer);
+    if (child.exitCode === null && child.signalCode === null)
+      child.kill("SIGKILL");
+    await exited.catch(() => {});
+  });
+  const [code, signal] = await exited;
+  clearTimeout(startup_timer);
+  clearTimeout(shutdown_timer);
+  assert.equal(
+    timeout_phase,
+    null,
+    `${timeout_phase}\n${output}\n${error_output}`,
+  );
+  assert.equal(signal, null);
+  assert.equal(code, 1);
+  assert.match(error_output, /could not open its listener/);
+  // No peer listener may survive the failed HTTP process.
+  const reusable = net.createServer();
+  await new Promise((resolve, reject) => {
+    reusable.once("error", reject);
+    reusable.listen(peer_port, "127.0.0.1", resolve);
+  });
+  await new Promise((resolve) => reusable.close(resolve));
 });
