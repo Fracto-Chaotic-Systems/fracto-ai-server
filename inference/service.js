@@ -29,6 +29,7 @@ export class InferenceService {
     min_disk_bytes = 1024 ** 3,
     pending_limit = 16,
     poll_ms = 250,
+    app_reference = null,
   }) {
     this.store = store;
     this.adapter = adapter;
@@ -41,6 +42,8 @@ export class InferenceService {
     this.broken = false;
     this.active = null;
     this.chat_active = null;
+    this.app_reference = app_reference;
+    this.reference_active = new Set();
     this.last_maintenance = now();
     // Never replay an ambiguous generation after a crash or graceful shutdown.
     for (const job of store.all()) {
@@ -89,10 +92,13 @@ export class InferenceService {
     this.broken = true;
     this.active?.controller.abort();
     this.chat_active?.controller.abort();
+    for (const request of this.reference_active) request.controller.abort();
   }
   async chat(body, { signal, on_delta } = {}) {
     this.available();
     const messages = chat_messages(body);
+    if (body.mode === "app-reference")
+      return this.reference_chat(messages.at(-1).content, { signal, on_delta });
     this.protect(() => {
       this.resources();
       if (
@@ -166,6 +172,71 @@ export class InferenceService {
     } finally {
       this.chat_active = null;
     }
+  }
+  async reference_chat(content, { signal, on_delta } = {}) {
+    const question = content.trim().replace(/\s+/g, " ");
+    if (
+      question.length > 512 ||
+      Buffer.byteLength(question) > 1024 ||
+      /[\x00-\x1f]/.test(question)
+    )
+      fail("CHAT_REFERENCE_QUESTION", 400);
+    if (!this.app_reference) fail("CHAT_REFERENCE_UNAVAILABLE", 503);
+    if (this.reference_active.size >= 16) fail("ENGINE_BUSY", 429);
+    const controller = new AbortController();
+    const combined = signal
+      ? AbortSignal.any([signal, controller.signal])
+      : controller.signal;
+    let timed_out = false;
+    const deadline = this.now() + 5000;
+    const timeout = setTimeout(() => {
+      timed_out = true;
+      controller.abort();
+    }, 5000);
+    const entry = { controller, task: null };
+    this.reference_active.add(entry);
+    const task = (async () => {
+      try {
+        combined.throwIfAborted();
+        const text = this.app_reference(question);
+        if (this.now() >= deadline) {
+          timed_out = true;
+          controller.abort();
+        }
+        if (
+          typeof text !== "string" ||
+          !text.trim() ||
+          Buffer.byteLength(text) > 65536
+        )
+          fail("CHAT_REFERENCE_UNAVAILABLE", 503);
+        combined.throwIfAborted();
+        if (on_delta) await on_delta(text, combined);
+        if (this.now() >= deadline) {
+          timed_out = true;
+          controller.abort();
+        }
+        combined.throwIfAborted();
+        this.available();
+        return {
+          contract_version: 1,
+          message: { role: "assistant", content: text },
+        };
+      } catch (error) {
+        if (combined.aborted)
+          fail(
+            timed_out ? "DEADLINE_EXCEEDED" : "CANCELLED",
+            timed_out ? 504 : 409,
+          );
+        if (["INVALID_QUESTION", "INVALID_SKILL_INPUT"].includes(error.code))
+          fail("CHAT_REFERENCE_QUESTION", 400);
+        fail("CHAT_REFERENCE_UNAVAILABLE", 503);
+      } finally {
+        clearTimeout(timeout);
+        this.reference_active.delete(entry);
+      }
+    })();
+    entry.task = task;
+    return task;
   }
   async submit(body, admission = {}) {
     this.available();
@@ -444,8 +515,12 @@ export class InferenceService {
     clearInterval(this.timer);
     this.active?.controller.abort();
     this.chat_active?.controller.abort();
+    for (const request of this.reference_active) request.controller.abort();
     await this.active?.task;
     await this.chat_active?.task?.catch(() => {});
+    await Promise.allSettled(
+      [...this.reference_active].map((request) => request.task),
+    );
     this.store.close();
   }
 }

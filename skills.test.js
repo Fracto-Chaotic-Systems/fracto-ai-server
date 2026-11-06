@@ -160,7 +160,7 @@ test("startup bootstraps once, preserves explicit disable and does not automatic
   assert.ok(second);
   assert.equal(second.get(id, "1.0.0").evaluation.evaluated_at, time);
   assert.throws(() => second.resolve(id, executor_digest()), /SKILL_DISABLED/);
-  assert.equal(second.status().versions, 3);
+  assert.equal(second.status().versions, 4);
   second.close();
 });
 

@@ -6,6 +6,7 @@ import {
 } from "../infrastructure/reference.js";
 import { fail, hash, validate_input, profile_for } from "./contracts.js";
 import { scan_environment_assets } from "../data_quality/scan.js";
+import { explain_app } from "../app_reference/reference.js";
 
 const fingerprint = hash(
   [
@@ -18,6 +19,15 @@ const fingerprint = hash(
     "../data_quality/contracts.js",
     "../data_quality/scan.js",
     "../data_quality/builtin.js",
+    "../app_reference/contracts.js",
+    "../app_reference/reference.js",
+    "../app_reference/builtin.js",
+    "../app_reference/fixtures.js",
+    "../app_reference/evaluate.js",
+    "../subject_providers/contracts.js",
+    "../subject_providers/validation.js",
+    "../subject_providers/bundle_contract.js",
+    "../subject_providers/bundle_sources.js",
   ]
     .map((file) =>
       fs
@@ -39,6 +49,8 @@ export const execute = (definition, input, reader) => {
   let result;
   if (definition.executor === "environment-asset-quality-v1")
     result = scan_environment_assets(input);
+  else if (definition.executor === "app-reference-v1")
+    result = explain_app(reader, input.question);
   else {
     question_terms(input.question);
     if (!reader?.read_only) fail("READ_ONLY_REQUIRED");

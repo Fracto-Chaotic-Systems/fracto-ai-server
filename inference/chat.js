@@ -11,7 +11,14 @@ const fields = (value, keys) =>
 
 export const chat_messages = (body) => {
   if (
-    !fields(body, ["contract_version", "messages"]) ||
+    !fields(
+      body,
+      body && Object.hasOwn(body, "mode")
+        ? ["contract_version", "messages", "mode"]
+        : ["contract_version", "messages"],
+    ) ||
+    (Object.hasOwn(body, "mode") &&
+      !["chat", "app-reference"].includes(body.mode)) ||
     body.contract_version !== 1 ||
     !Array.isArray(body.messages) ||
     !body.messages.length ||

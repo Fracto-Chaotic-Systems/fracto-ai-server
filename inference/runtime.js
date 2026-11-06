@@ -2,6 +2,7 @@ import path from "node:path";
 import { create_engine_adapter } from "../engines/registry.js";
 import { LocalStore } from "./storage.js";
 import { InferenceService } from "./service.js";
+import { create_app_chat_reference } from "../app_reference/chat.js";
 
 const headroom = (environment, key, fallback, maximum) => {
   const raw = environment[key] ?? String(fallback);
@@ -41,6 +42,7 @@ export const create_inference_runtime = (environment = process.env) => {
       adapter,
       min_memory_bytes,
       min_disk_bytes,
+      app_reference: create_app_chat_reference(environment),
     });
     return { service, engine_status: () => adapter.status() };
   } catch {

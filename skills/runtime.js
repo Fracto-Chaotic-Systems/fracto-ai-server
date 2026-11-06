@@ -3,6 +3,7 @@ import path from "node:path";
 import { SkillRegistry } from "./storage.js";
 import { infrastructure_definition } from "./builtin.js";
 import { data_quality_definition } from "../data_quality/builtin.js";
+import { app_reference_definition } from "../app_reference/builtin.js";
 import { executor_digest } from "./executor.js";
 import { evaluate_release } from "./evaluate.js";
 
@@ -27,6 +28,7 @@ export const create_skill_runtime = (environment = process.env) => {
     for (const definition of [
       infrastructure_definition,
       data_quality_definition,
+      app_reference_definition,
     ]) {
       const release = registry.publish(definition);
       if (

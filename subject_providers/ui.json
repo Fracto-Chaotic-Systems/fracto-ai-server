@@ -1,0 +1,122 @@
+{
+  "contract_version": 1,
+  "provider_id": "ui-features",
+  "subject_id": "application-ui",
+  "extractor": { "id": "ui-catalog", "version": "1.0.0" },
+  "sources": [
+    { "id": "catalog", "repository": "ui", "path": "src/features/catalog.json" }
+  ],
+  "documents": [
+    {
+      "id": "home",
+      "source_ids": ["catalog"],
+      "format": "markdown",
+      "validation": {
+        "profile": "reference-text-v1",
+        "required_sections": [
+          "Purpose",
+          "Features",
+          "Permissions",
+          "Configuration",
+          "Limitations"
+        ]
+      }
+    },
+    {
+      "id": "admin",
+      "source_ids": ["catalog"],
+      "format": "markdown",
+      "validation": {
+        "profile": "reference-text-v1",
+        "required_sections": [
+          "Purpose",
+          "Features",
+          "Permissions",
+          "Configuration",
+          "Limitations"
+        ]
+      }
+    },
+    {
+      "id": "data",
+      "source_ids": ["catalog"],
+      "format": "markdown",
+      "validation": {
+        "profile": "reference-text-v1",
+        "required_sections": [
+          "Purpose",
+          "Features",
+          "Permissions",
+          "Configuration",
+          "Limitations"
+        ]
+      }
+    },
+    {
+      "id": "assets",
+      "source_ids": ["catalog"],
+      "format": "markdown",
+      "validation": {
+        "profile": "reference-text-v1",
+        "required_sections": [
+          "Purpose",
+          "Features",
+          "Permissions",
+          "Configuration",
+          "Limitations"
+        ]
+      }
+    },
+    {
+      "id": "tiles",
+      "source_ids": ["catalog"],
+      "format": "markdown",
+      "validation": {
+        "profile": "reference-text-v1",
+        "required_sections": [
+          "Purpose",
+          "Features",
+          "Permissions",
+          "Configuration",
+          "Limitations"
+        ]
+      }
+    },
+    {
+      "id": "study",
+      "source_ids": ["catalog"],
+      "format": "markdown",
+      "validation": {
+        "profile": "reference-text-v1",
+        "required_sections": [
+          "Purpose",
+          "Features",
+          "Permissions",
+          "Configuration",
+          "Limitations"
+        ]
+      }
+    },
+    {
+      "id": "games",
+      "source_ids": ["catalog"],
+      "format": "markdown",
+      "validation": {
+        "profile": "reference-text-v1",
+        "required_sections": [
+          "Purpose",
+          "Features",
+          "Permissions",
+          "Configuration",
+          "Limitations"
+        ]
+      }
+    }
+  ],
+  "limits": {
+    "source_bytes": 1048576,
+    "total_source_bytes": 1048576,
+    "document_bytes": 65536,
+    "total_document_bytes": 1048576
+  }
+}

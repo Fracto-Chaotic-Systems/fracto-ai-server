@@ -19,7 +19,7 @@ There is no arbitrary model selection, tool invocation or automatic action API.
 `POST /inference/chat` uses the machine authorization described below. The admin
 service provides the browser-facing administrator bridge; browsers cannot call
 this endpoint with session cookies or Origin headers. Request version 1 accepts
-only `contract_version: 1` and `messages`, with 1–16 `{role, content}` text
+`contract_version: 1`, `messages` and optional `mode`, with 1–16 `{role, content}` text
 messages, user/assistant roles only, a final user message and at most 8192 UTF-8
 bytes of serialized history. Its JSON body limit is 16 KiB; all other inference
 routes retain their 4096-byte body limit. Query parameters, unknown fields,
@@ -28,6 +28,16 @@ bounded TXT, Markdown, JSON and CSV attachments locally and include the extracte
 text and names in ordinary user-message content. That content shares the same
 8192-byte history budget; the AI service never receives raw file objects or
 stores uploaded files.
+
+Missing mode or `"chat"` uses General chat described below. `"app-reference"`
+dispatches the active evaluated read-only skill against one published UI snapshot
+and returns exact cited passages as response text, without model invocation or
+generation memory/disk/queue admission. It uses the last user question only,
+bounded to 512 characters, 1024 UTF-8 bytes and 12 meaningful terms. A separate
+16-stream limit and five-second deadline apply. Missing/disabled reference state
+returns `CHAT_REFERENCE_UNAVAILABLE`; invalid reference questions return
+`CHAT_REFERENCE_QUESTION`. It shares the same machine authentication, response
+shape, NDJSON framing and output limit. See [reference chat](../app_reference/CHAT.md).
 
 Responses contain only `{contract_version: 1, message: {role: "assistant",
 content: "..."}}`. Generation uses the configured local model, 512 output tokens,
@@ -45,8 +55,8 @@ records and oversized responses are rejected. Streaming uses the same admission,
 history, output, token and deadline limits. Both HTTP hops await downstream
 backpressure, and nginx buffering is disabled through `X-Accel-Buffering: no`.
 
-Chat shares the service's single generation slot with ordinary inference. New
-chats return 429 while another chat or job runs or durable jobs are queued.
+General chat shares the service's single generation slot with ordinary inference.
+New model chats return 429 while another chat or job runs or durable jobs are queued.
 Queue dispatch waits during chat. Existing memory/disk admission checks also
 apply. Browser disconnect/Stop propagates through the admin bridge to the engine;
 shutdown and broken storage also abort chat. Cancellation does not prove instant
@@ -54,8 +64,9 @@ engine resource release. Late outputs after cancellation are discarded.
 
 Chat history and output are transient: no job, artifact, knowledge document,
 peer exchange or durable transcript is created. The browser sends bounded recent
-history each turn and clears it on leaving the page. Chat does not retrieve local
-knowledge or execute operational actions. `chat.test.js` tests this contract with
+history each General chat turn and clears it on leaving the page or changing
+mode. App reference reads published knowledge; neither mode executes operational
+actions. `chat.test.js` tests the General chat contract with
 injected adapters; the root `test/admin_chat.test.js` also covers both HTTP hops.
 
 ## API version 1

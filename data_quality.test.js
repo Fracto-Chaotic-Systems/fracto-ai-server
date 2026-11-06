@@ -298,7 +298,7 @@ test("startup and local CLI support snapshots larger than definition limits with
   const environment = { FRACTO_AI_SKILL_DIR: registry.directory };
   const runtime = create_skill_runtime(environment);
   assert.ok(runtime);
-  assert.equal(runtime.status().skills, 2);
+  assert.equal(runtime.status().skills, 3);
   runtime.close();
   const input = duplicate_fixture();
   input.environments = Array.from({ length: 1000 }, (_, n) => ({
