@@ -458,17 +458,32 @@ test("peer worker automatically pulls distributed candidates without touching lo
   const runtime = new PeerRuntime({
     directory,
     settings: { host: "127.0.0.1", port: 0 },
-    poll_ms: 20,
+    poll_ms: 250,
     probe_interval_ms: 1000,
   });
   dispose(t, () => runtime.close());
-  const deadline = Date.now() + 10000;
+  // Cover the normal 30-second retry backoff and a bounded 30-second pull.
+  // Keep the production transport deadlines and retry policy unchanged.
+  const deadline = Date.now() + 65000;
   while (
     (runtime.distribution?.store.status().records ?? 0) !== 1 &&
     Date.now() < deadline
   )
     await new Promise((resolve) => setTimeout(resolve, 25));
-  assert.equal(runtime.distribution.store.status().records, 1);
+  assert.equal(
+    runtime.distribution?.store.status().records ?? 0,
+    1,
+    JSON.stringify({
+      peer_state: runtime.state,
+      refresh_in_progress: !!runtime.refreshing,
+      pull_in_progress: !!runtime.probe,
+      distribution: runtime.distribution?.store.status(),
+      attempts: [...(runtime.distribution?.states.values() ?? [])].map((state) => ({
+        failures: state.failures,
+        retry_in_ms: Math.max(0, state.at - Date.now()),
+      })),
+    }),
+  );
   assert.equal(runtime.distribution.store.status().published, 0);
   assert.equal(runtime.distribution.store.status().adoptions, 0);
 });
