@@ -11,6 +11,30 @@ one node per request. See [the adapter contract](engines/README.md).
 
 ## Current stage
 
+The [subject-provider contract](subject_providers/README.md) defines validated,
+versioned source/document declarations for future automatic app-information
+seeding. The UI declaration now feeds a reviewed build-time extractor and
+[deterministic knowledge bundle](subject_providers/BUNDLES.md), with source hashes,
+implementation fingerprints and optional Git provenance. Explicit local
+[reconciliation](subject_providers/RECONCILIATION.md) persists complete bundles,
+provider ownership and manifest history while preserving operator edits and
+retirements. [Automatic refresh](subject_providers/REFRESH.md) now consumes prepared
+bundles on startup and every minute, while preserving operator ownership and the
+last good publication on failure.
+
+[Complete snapshot publication](subject_providers/SNAPSHOTS.md) separately selects
+one fully persisted bundle with compare-and-swap protection. Readers pin all its
+documents to one immutable generation; failed publication preserves the previous
+pointer, and operator edits/retirements disable future published reads.
+
+The read-only [app-reference skill](app_reference/README.md) now bootstraps through
+the persistent registry, evaluates against synthetic published snapshots and pins
+one live published UI bundle per local question. It returns bounded exact quotes
+with bundle/document and registry provenance, preserving operator skill selections.
+The [App reference chat mode](app_reference/CHAT.md) now dispatches that skill
+through the existing authorized streaming chat flow, without model calls or
+automatic fallback. General chat retains its model/file workflow.
+
 Persistent local reference knowledge is implemented in [knowledge/README.md](knowledge/README.md):
 explicit local document import, immutable revisions/provenance, SQLite full-text
 search and source retirement. Startup initializes it independently of inference;

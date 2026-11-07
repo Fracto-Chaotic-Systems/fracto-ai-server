@@ -6,6 +6,12 @@ import {
   valid_input as quality_valid,
   issue_codes,
 } from "../data_quality/contracts.js";
+import {
+  input_schema as app_input,
+  output_schema as app_output,
+  input_validator as app_valid,
+  output_validator as app_output_valid,
+} from "../app_reference/contracts.js";
 
 export class SkillError extends Error {
   constructor(code) {
@@ -88,11 +94,21 @@ export const validate_input = (
   if (
     !(executor === "environment-asset-quality-v1"
       ? quality_valid(input)
-      : input_validator(input))
+      : executor === "app-reference-v1"
+        ? app_valid(input)
+        : input_validator(input))
   )
     fail("INVALID_SKILL_INPUT");
 };
 export const profile_for = (executor) => {
+  if (executor === "app-reference-v1")
+    return {
+      id: "app-reference",
+      permission: "bundle:read",
+      input: app_input,
+      output: app_output,
+      validate_output: app_output_valid,
+    };
   if (executor === "infrastructure-reference-v1")
     return {
       id: "infrastructure-reference",
@@ -112,17 +128,17 @@ export const profile_for = (executor) => {
   fail("EXECUTOR_UNAVAILABLE");
 };
 const compile_quality_output = compile_schema(quality_output).validate;
-const definition_schema = (quality = false) =>
-  object({
+const definition_schema = (executor = "infrastructure-reference-v1") => {
+  const quality = executor === "environment-asset-quality-v1";
+  const profile = profile_for(executor);
+  return object({
     contract_version: { const: 1 },
     skill_id: {
-      const: quality ? "environment-asset-quality" : "infrastructure-reference",
+      const: profile.id,
     },
     version: string(11),
     executor: {
-      const: quality
-        ? "environment-asset-quality-v1"
-        : "infrastructure-reference-v1",
+      const: executor,
     },
     description: string(1024),
     procedure: { type: "array", minItems: 1, maxItems: 8, items: string(512) },
@@ -130,7 +146,7 @@ const definition_schema = (quality = false) =>
       type: "array",
       minItems: 1,
       maxItems: 1,
-      items: { const: quality ? "snapshot:read" : "knowledge:read" },
+      items: { const: profile.permission },
     },
     input_schema: { type: "object" },
     output_schema: { type: "object" },
@@ -139,7 +155,7 @@ const definition_schema = (quality = false) =>
       minItems: 1,
       maxItems: 8,
       items: object({
-        input: quality ? quality_input : input_schema,
+        input: profile.input,
         purpose: string(512),
       }),
     },
@@ -160,15 +176,19 @@ const definition_schema = (quality = false) =>
             required_issue_codes: array({ enum: issue_codes }, 7),
           })
         : object({
-            input: input_schema,
+            input: profile.input,
             state: { enum: ["evidence_found", "insufficient_evidence"] },
             required_sources: array(string(80), 4),
           }),
     },
   });
+};
 const definition_validator = compile_schema(definition_schema()).validate;
 const quality_definition_validator = compile_schema(
-  definition_schema(true),
+  definition_schema("environment-asset-quality-v1"),
+).validate;
+const app_definition_validator = compile_schema(
+  definition_schema("app-reference-v1"),
 ).validate;
 export const normalize_definition = (value) => {
   let text;
@@ -183,7 +203,9 @@ export const normalize_definition = (value) => {
   if (
     !(quality
       ? quality_definition_validator(definition)
-      : definition_validator(definition))
+      : definition.executor === "app-reference-v1"
+        ? app_definition_validator(definition)
+        : definition_validator(definition))
   )
     fail("INVALID_DEFINITION");
   const profile = profile_for(definition.executor);
@@ -196,6 +218,15 @@ export const normalize_definition = (value) => {
   const sources = new Set();
   for (const fixture of definition.fixtures) {
     label(fixture.source);
+    if (
+      definition.executor === "app-reference-v1" &&
+      (!/^app-11-ui-features-[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(
+        fixture.source,
+      ) ||
+        fixture.source.slice(19).length > 32 ||
+        fixture.source === "app-11-ui-features-mandatory")
+    )
+      fail("INVALID_DEFINITION");
     if (sources.has(fixture.source)) fail("INVALID_DEFINITION");
     sources.add(fixture.source);
   }

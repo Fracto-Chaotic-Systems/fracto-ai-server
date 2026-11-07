@@ -59,7 +59,7 @@ try {
     );
   if (command === "history") result = registry.history();
   if (command === "run") {
-    if (args[0] === "infrastructure-reference")
+    if (["infrastructure-reference", "app-reference"].includes(args[0]))
       reader = new KnowledgeStore(knowledge_directory(), { read_only: true });
     result = run_active(
       registry,

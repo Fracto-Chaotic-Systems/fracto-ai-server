@@ -19,6 +19,8 @@ node --env-file-if-exists=.env knowledge/cli.js get terrain-contract
 node --env-file-if-exists=.env knowledge/cli.js put terrain-contract revision-2 updated-reference.md revision-1
 node --env-file-if-exists=.env knowledge/cli.js get terrain-contract revision-1
 node --env-file-if-exists=.env knowledge/cli.js retire terrain-contract revision-2
+node --env-file-if-exists=.env knowledge/cli.js reconcile
+node --env-file-if-exists=.env knowledge/cli.js bundle-status
 ```
 
 `put SOURCE REVISION FILE [EXPECTED_CURRENT_REVISION]` reads one explicitly
@@ -30,6 +32,19 @@ complete logs and private configuration. There is no crawling or URL fetching,
 nor a claim that text is automatically certified free of personal information.
 No text is sent to a model, HTTP API, telemetry, root logs or peers. CLI output
 is for local administration only.
+
+`reconcile` explicitly adopts the fixed generated UI bundle in one transaction,
+with durable provider ownership, immutable manifest snapshots and preservation of
+operator edits/retirements. `bundle-status` reads its selected manifest without
+writing. `bundle-publish DIGEST EXPECTED_PUBLISHED_DIGEST` separately selects a
+complete snapshot (`none` for the first publication). `bundle-publication` reads
+its metadata; `bundle-read [DIGEST]` reads the whole published/historical artifact.
+See [complete snapshots](../subject_providers/SNAPSHOTS.md) and
+[bundle reconciliation](../subject_providers/RECONCILIATION.md) for
+admission, removal/restoration, replay, capacity and deployment behavior. No skill
+or chat activation is performed by these manual commands. [Automatic refresh](../subject_providers/REFRESH.md)
+now consumes prepared bundles on startup and every minute under persistent
+ownership guards; disable it with `FRACTO_AI_APP_REFERENCE_REFRESH=false`.
 
 `list [AFTER_SOURCE]` returns up to 20 current-source metadata records (including
 retired sources) and a `next_cursor`; supply it to retrieve the next page.
@@ -71,8 +86,10 @@ dedicated native/CLI directory. Docker refuses source-mounted fallback without
 an explicit data directory. Never share a SQLite directory across machines.
 
 The existing protected-directory ACL helper (via `peers/files.js`) restricts
-Windows access; POSIX directories/files are 0700/0600. SQLite schema version 1
+Windows access; POSIX directories/files are 0700/0600. SQLite schema version 4
 uses DELETE rollback journaling, FULL synchronization and a 2-second busy timeout.
+Writable opens transactionally migrate versions 1/2/3 without removing knowledge;
+read-only opens support all four versions. Earlier binaries reject version 4.
 Short transactions permit CLI access while the service runs.
 The infrastructure question CLI uses SQLite read-only mode and a consistent read
 snapshot, without ACL changes, initialization, orphan cleanup or document writes.
@@ -97,3 +114,7 @@ unknown-schema store merely to make readiness succeed.
 `../knowledge.test.js` covers persistence, revision conflicts, concurrent
 connections, current/retired search, invalid input, tampering, disk admission,
 runtime isolation and orphan recovery.
+`../knowledge_reconcile.test.js` covers transactional bundle import, ownership,
+local overrides, snapshot history, migration and generated-artifact CLI adoption.
+`../knowledge_publication.test.js` covers complete snapshot publication, reader
+pinning, compare-and-swap conflicts, disabled publications and failure recovery.

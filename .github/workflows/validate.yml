@@ -12,9 +12,50 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fracto
+          token: ${{ secrets.FRACTO_SERVICES_READ_TOKEN || github.token }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fracto-admin-server
+          token: ${{ secrets.FRACTO_SERVICES_READ_TOKEN || github.token }}
+          path: servers/fracto-admin-server
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          path: servers/fracto-ai-server
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fracto-asset-server
+          token: ${{ secrets.FRACTO_SERVICES_READ_TOKEN || github.token }}
+          path: servers/fracto-asset-server
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fracto-data-server
+          token: ${{ secrets.FRACTO_SERVICES_READ_TOKEN || github.token }}
+          path: servers/fracto-data-server
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fracto-tiles-server
+          token: ${{ secrets.FRACTO_SERVICES_READ_TOKEN || github.token }}
+          path: servers/fracto-tiles-server
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fracto-ui
+          token: ${{ secrets.FRACTO_SERVICES_READ_TOKEN || github.token }}
+          path: servers/fracto-ui
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run check
+      - run: npm ci --prefix servers/fracto-ai-server
+      - run: npm ci --prefix servers/fracto-ui
+      - run: npm run check --prefix servers/fracto-ai-server
+      - run: npm run check:app-reference

@@ -150,6 +150,7 @@ vite.config.ts.timestamp-*
 
 # Fracto service runtime and configuration
 runtime/
+generated/knowledge/
 logs/
 .env
 .env.*

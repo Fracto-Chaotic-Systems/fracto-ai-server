@@ -5,6 +5,7 @@ import { KnowledgeStore } from "../knowledge/storage.js";
 import { execute, executor_digest } from "./executor.js";
 import { hash } from "./contracts.js";
 import { clean_fixture, duplicate_fixture } from "../data_quality/builtin.js";
+import { evaluate_app } from "../app_reference/evaluate.js";
 
 const evaluate_quality = (registry, release) => {
   const cases = [
@@ -60,6 +61,8 @@ const evaluate_quality = (registry, release) => {
 
 export const evaluate_release = (registry, id, version) => {
   const release = registry.get(id, version);
+  if (release.definition.executor === "app-reference-v1")
+    return evaluate_app(registry, release);
   if (release.definition.executor === "environment-asset-quality-v1")
     return evaluate_quality(registry, release);
   const root = path.resolve(os.tmpdir());

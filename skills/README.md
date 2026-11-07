@@ -9,14 +9,17 @@ candidate; it does not activate a version, install code or grant permissions.
 releases, evaluation receipts, active selections and bounded selection history;
 `executor.js` is the fixed handler allowlist and code fingerprint; `evaluate.js`
 checks mandatory and definition-supplied cases in isolated knowledge/snapshot fixtures;
-`builtin.js` defines the initial infrastructure release and `data_quality/builtin.js`
-defines the quality release; `runtime.js` installs both
+`builtin.js` defines the initial infrastructure release, `data_quality/builtin.js`
+defines the quality release, and `app_reference/builtin.js` defines the application
+reference release; `runtime.js` installs all three
 on startup; `cli.js` is local administration and dispatch. Registry text is inert.
 
 ## Lifecycle
 
 Publication accepts the shipped `infrastructure-reference-v1` executor with
-`knowledge:read`, or `environment-asset-quality-v1` with `snapshot:read`.
+`knowledge:read`, `environment-asset-quality-v1` with `snapshot:read`, or
+`app-reference-v1` with `bundle:read`. The [app-reference skill](../app_reference/README.md)
+pins one complete published UI snapshot and returns exact document/bundle citations.
 Skill IDs, executors, permissions and schemas must match the same fixed profile;
 definitions cannot mix capabilities or weaken schemas.
 Procedure text describes behavior; it does not alter handler code. Adding a new
@@ -27,7 +30,7 @@ is idempotent; changing bytes under an existing skill/version conflicts. At most
 
 Evaluation runs against disposable fixtures, never live knowledge, model engines,
 peers or production records. It checks mandatory evidence/missing-evidence cases
-for infrastructure and clean/duplicate-reference cases for data quality,
+for infrastructure/app reference and clean/duplicate-reference cases for data quality,
 published cases and examples, input/output contracts, exact citations, result bounds, and no
 database mutation. Receipts bind the definition digest and shipped executor code
 fingerprint. Passing these checks establishes the shipped reference/scan behavior,
@@ -42,7 +45,7 @@ Changing handler/contract/evaluation code invalidates old receipts until reevalu
 Results include the registry version, definition digest and executor fingerprint.
 The last 1000 activation/deactivation events are retained, without account/device IDs.
 
-On startup, both shipped releases are published/evaluated idempotently.
+On startup, all three shipped releases are published/evaluated idempotently.
 Only the first successful bootstrap of each skill selects it automatically. Later startups
 preserve an explicitly disabled, rolled-back or locally selected release. Evaluation
 is repeated only if its code fingerprint changes. Bootstrapping runs synthetic
@@ -65,6 +68,7 @@ node --env-file-if-exists=.env skills/cli.js activate infrastructure-reference 1
 node --env-file-if-exists=.env skills/cli.js deactivate infrastructure-reference 1.0.0
 node --env-file-if-exists=.env skills/cli.js history
 node --env-file-if-exists=.env skills/cli.js run infrastructure-reference approved-input.json
+node --env-file-if-exists=.env skills/cli.js run app-reference approved-question.json
 ```
 
 Replace the final activation argument with the currently selected version when
