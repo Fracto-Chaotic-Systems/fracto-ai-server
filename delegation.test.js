@@ -524,8 +524,18 @@ test("invalid or mismatched remote results are discarded without storing private
 });
 
 test("real mTLS delegates an entire request to one executor; machine authorization and peer scope remain separate", async (t) => {
-  const first = source(t, { poll_ms: 10 });
-  const second = source(t, { poll_ms: 10 });
+  const first = source(t);
+  const second = source(t);
+  // Drive real worker tasks explicitly; fsync/TLS time is not a polling budget.
+  clearInterval(first.service.timer);
+  clearInterval(second.service.timer);
+  const trace = [];
+  const execute_remote = async () => {
+    second.service.tick();
+    const task = second.service.active?.task;
+    assert.ok(task, "the executor must dispatch its queued job");
+    await task;
+  };
   const receiver = new DelegationReceiver({
     node_id: b.node_id,
     source: () => second.service,
@@ -542,10 +552,15 @@ test("real mTLS delegates an entire request to one executor; machine authorizati
   const fixture = origin(t, {
     source: () => first.service,
     peers: () => [selected],
-    poll_ms: 20,
-    query_interval_ms: 500,
-    min_peer_interval_ms: 500,
+    poll_ms: 60000,
+    query_interval_ms: 0,
+    min_peer_interval_ms: 0,
+    request: async (options) => {
+      trace.push({ method: options.method || "GET", route: options.route });
+      return peer_request(options);
+    },
   });
+  clearInterval(fixture.value.timer);
   const describe = (id, stage) => {
     const receipt = fixture.value.inspect(id);
     return {
@@ -594,10 +609,11 @@ test("real mTLS delegates an entire request to one executor; machine authorizati
     });
     assert.equal(response.status, 202);
     const receipt = await response.json();
-    await wait_for(
-      () => fixture.value.inspect(receipt.request_id).state === "completed",
-      () => describe(receipt.request_id, "initial_completion"),
-    );
+    await step(fixture.value);
+    await execute_remote();
+    await step(fixture.value);
+    assert.equal(fixture.value.inspect(receipt.request_id).state, "completed",
+      JSON.stringify(describe(receipt.request_id, "initial_completion")));
     assert.equal(first.state.calls, 0);
     assert.equal(second.state.calls, 1);
     assert.equal(first.service.store.all().length, 0);
@@ -627,16 +643,20 @@ test("real mTLS delegates an entire request to one executor; machine authorizati
       throw new Error("private post-commit failure");
     };
     const ambiguous = fixture.value.submit(request());
-    await wait_for(
-      () => fixture.value.inspect(ambiguous.request_id).state === "unknown",
-      () => describe(ambiguous.request_id, "lost_acknowledgement"),
-    );
+    await step(fixture.value);
+    assert.equal(fixture.value.inspect(ambiguous.request_id).state, "unknown",
+      JSON.stringify(describe(ambiguous.request_id, "lost_acknowledgement")));
+    const recovery_start = trace.length;
+    assert.equal(second.state.calls, 1);
     assert.equal(second.service.store.all().length, 2);
     await second.reopen();
-    await wait_for(
-      () => fixture.value.inspect(ambiguous.request_id).state === "completed",
-      () => describe(ambiguous.request_id, "recovered_completion"),
-    );
+    clearInterval(second.service.timer);
+    await execute_remote();
+    await step(fixture.value);
+    assert.equal(fixture.value.inspect(ambiguous.request_id).state, "completed",
+      JSON.stringify(describe(ambiguous.request_id, "recovered_completion")));
+    assert.deepEqual(trace.slice(recovery_start).map((item) => item.method), ["GET"]);
+    assert.equal(trace.filter((item) => item.method === "POST" && item.route === "/peer/v1/delegations").length, 2);
     assert.equal(second.state.calls, 2);
     assert.equal(second.service.store.all().length, 2);
     assert.equal(first.state.calls, 0);
