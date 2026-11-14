@@ -213,6 +213,14 @@ or fleet dependency is available.
 - `LICENSE`: the license from the repository's initial commit, preserved.
 - `.github/workflows/validate.yml`: independent Node 22 validation on pushes and pull requests.
 
+`npm test` and `npm run check` limit execution to two test files at once. The
+suite uses real loopback HTTP/mTLS fixtures, SQLite and cryptographic work;
+default file concurrency can starve their transport deadlines on small build
+hosts. The real-adapter inference test awaits its dispatched task and asserts
+the persisted completed state before reading the result, so failures report the
+job state/error rather than a secondary `RESULT_NOT_READY`. Runtime resource,
+transport and inference deadlines remain unchanged.
+
 This folder is an independent Git checkout, not part of the root repository.
 Keep it directly under `servers/`. Commit its source here; commit supervisor,
 Docker, Compose and shared integration changes in the root checkout, and Admin/UI

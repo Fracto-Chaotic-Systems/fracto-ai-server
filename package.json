@@ -10,8 +10,8 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env index.js",
     "dev": "node --env-file-if-exists=.env --watch index.js",
-    "check": "node check_syntax.js && node --test",
-    "test": "node --test"
+    "check": "node check_syntax.js && node --test --test-concurrency=2",
+    "test": "node --test --test-concurrency=2"
   },
   "dependencies": {
     "@peculiar/x509": "3.1.0",

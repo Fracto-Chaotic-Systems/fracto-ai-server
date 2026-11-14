@@ -499,7 +499,12 @@ test("real adapter pipeline enforces the owned template, schema, thread and toke
   const service = fixture(t, { adapter: selected }).open();
   const id = (await service.submit(sample())).job.request_id;
   service.tick();
-  await wait_for(() => !service.active);
+  // An idle slot also means dispatch was paused or generation failed. Await the
+  // actual task, then assert durable completion before asking for its result.
+  assert.ok(service.active?.task, JSON.stringify(service.inspect(id)));
+  await service.active.task;
+  const completed = service.inspect(id);
+  assert.equal(completed.state, "completed", JSON.stringify(completed));
   assert.deepEqual(service.inspect(id, true).output, output);
   const chat = calls.find((call) => call.route === "/api/chat").body;
   assert.equal(chat.options.num_thread, 2);
