@@ -10,11 +10,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env index.js",
     "dev": "node --env-file-if-exists=.env --watch index.js",
-<<<<<<< HEAD
-    "check": "node check_syntax.js && npm test",
-=======
     "check": "node check_syntax.js && node --test --test-concurrency=2",
->>>>>>> c4a48f4b428eb102570c09928e8143a7b2f4e133
     "test": "node --test --test-concurrency=2"
   },
   "dependencies": {
