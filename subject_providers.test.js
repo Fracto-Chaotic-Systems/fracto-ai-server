@@ -9,7 +9,7 @@ import {
   validate_documents,
   provider_digest,
   knowledge_source_id,
-} from "./subject_providers/contracts.js";
+} from "@fracto/sdk/knowledge/Contracts.js";
 
 const fixture = () => ({
   contract_version: 1,

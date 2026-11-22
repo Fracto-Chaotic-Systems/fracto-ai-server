@@ -1,6 +1,6 @@
 import express from "express";
 import { fail } from "./contracts.js";
-import { write_chat_record } from "../../../utils/chat_stream.js";
+import { write_chat_record } from "@fracto/sdk/utils/ChatStream.js";
 
 const fields = (value, keys) =>
   value &&

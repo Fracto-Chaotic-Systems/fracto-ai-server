@@ -1,7 +1,7 @@
 import path from "node:path";
 import { read_source_file, bundle_fail } from "./bundle_sources.js";
 import { validate_bundle, MAX_BUNDLE_BYTES } from "./bundle_contract.js";
-import { provider_digest } from "./contracts.js";
+import { provider_digest } from "@fracto/sdk/knowledge/Contracts.js";
 
 /** Fixed local artifact admission. No extraction, checkout scanning or inference. */
 export const read_ui_bundle = (

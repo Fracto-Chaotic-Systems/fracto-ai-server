@@ -1,5 +1,5 @@
 import { EngineError } from "./errors.js";
-import { read_json_lines } from "../../../sdk/FractoChatStream.js";
+import { read_json_lines } from "@fracto/sdk/FractoChatStream.js";
 
 export const local_base_url = (value, allow_host_gateway = false) => {
   try {

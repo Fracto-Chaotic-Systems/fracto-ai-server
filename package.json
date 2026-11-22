@@ -17,6 +17,20 @@
     "@peculiar/x509": "3.1.0",
     "ajv": "8.20.0",
     "express": "^5.2.1",
-    "reflect-metadata": "0.2.2"
+    "reflect-metadata": "0.2.2",
+    "@fracto/sdk": "file:../../sdk"
+  },
+  "fracto": {
+    "commands": {
+      "build_knowledge_bundle": {
+        "entry": "scripts/build_knowledge_bundle.js",
+        "before": [
+          {
+            "service": "fracto-ui",
+            "command": "check_feature_catalog"
+          }
+        ]
+      }
+    }
   }
 }

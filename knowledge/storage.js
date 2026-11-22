@@ -8,7 +8,7 @@ import {
   bundle_bytes,
   MAX_BUNDLE_BYTES,
 } from "../subject_providers/bundle_contract.js";
-import { canonical } from "../subject_providers/validation.js";
+import { canonical } from "@fracto/sdk/knowledge/Validation.js";
 
 export class KnowledgeError extends Error {
   constructor(code) {

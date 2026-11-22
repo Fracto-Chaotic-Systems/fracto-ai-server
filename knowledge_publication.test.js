@@ -9,9 +9,9 @@ import {
   validate_provider,
   provider_digest,
   knowledge_source_id,
-} from "./subject_providers/contracts.js";
+} from "@fracto/sdk/knowledge/Contracts.js";
 import { validate_bundle } from "./subject_providers/bundle_contract.js";
-import { canonical } from "./subject_providers/validation.js";
+import { canonical } from "@fracto/sdk/knowledge/Validation.js";
 import { digest } from "./subject_providers/bundle_sources.js";
 
 const provider_id = "ui-features";

@@ -4,8 +4,8 @@ import {
   validate_documents,
   provider_digest,
   knowledge_source_id,
-} from "./contracts.js";
-import { canonical, valid_text } from "./validation.js";
+} from "@fracto/sdk/knowledge/Contracts.js";
+import { canonical, valid_text } from "@fracto/sdk/knowledge/Validation.js";
 import {
   read_source_file,
   source_provenance,
@@ -78,7 +78,7 @@ const extract = async (provider, sources, signal) => {
   )
     bundle_fail("UNSUPPORTED_BUNDLE_EXTRACTOR");
   const { extract_ui_catalog } =
-    await import("../../fracto-ui/src/features/knowledge_documents.js");
+    await import("@fracto/sdk/catalog/KnowledgeDocuments.js");
   return extract_ui_catalog({ sources, signal });
 };
 

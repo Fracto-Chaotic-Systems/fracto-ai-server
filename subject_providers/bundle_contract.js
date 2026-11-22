@@ -3,8 +3,8 @@ import {
   validate_documents,
   provider_digest,
   knowledge_source_id,
-} from "./contracts.js";
-import { canonical, object } from "./validation.js";
+} from "@fracto/sdk/knowledge/Contracts.js";
+import { canonical, object } from "@fracto/sdk/knowledge/Validation.js";
 import { bundle_fail, digest } from "./bundle_sources.js";
 
 export const BUNDLE_VERSION = 1;
