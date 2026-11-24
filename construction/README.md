@@ -1,5 +1,13 @@
 # Construction planner v1
 
+Current component authoring is collaborative work with the coding assistant and
+maintained construction descriptions, rather than automatic server generation.
+The data service's `components/blueprints/README.md` defines material roles,
+procedural rules, realized-scene linkage and future scoped AI edits. This planner
+remains an available implemented capability; it does not currently ingest those
+full blueprints. Future integration needs a bounded data API, role/parameter patch
+contract and paired description/scene preview, with revisions and validation.
+
 The [representative evaluation](EVALUATION.md) records eight fixture builds,
 six failure cases, renderer/MySQL fidelity checks, catalog gaps and live-model
 results. The earlier latency failure is historical: plain-floor and reviewed
@@ -113,7 +121,7 @@ memory/disk checks, and a 175-second deadline. It never relaxes engine limits.
 5. Replace model aliases with actual asset IDs/revisions, registered texture
    paths, existing target IDs or fresh server UUIDs. Re-resolve every used pin.
    Replay the whole batch with the shared SDK, including footprint clearance,
-   frozen seeded scatter, 1,000 total instances and 64 distinct pins. Invalid
+   frozen seeded scatter, 1,000 total instances and 128 distinct pins. Invalid
    output, stale references or impossible layouts fail without partial apply.
 
 Built-in recipes are reviewed server source, distinct from explicitly remembered
