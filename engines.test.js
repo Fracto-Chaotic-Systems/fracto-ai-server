@@ -1,14 +1,43 @@
 import assert from "node:assert/strict";
+import { availableParallelism } from "node:os";
 import http from "node:http";
 import { once } from "node:events";
 import test from "node:test";
 import { EngineError } from "./engines/errors.js";
+import { compile_schema } from "./engines/contracts.js";
 import {
   create_engine_adapter,
   create_engine_status_reader,
 } from "./engines/registry.js";
 
 const digest = "a".repeat(64);
+test("bounded schema alternatives validate tool shapes without permitting hidden references", () => {
+  const branch = {
+    type: "object",
+    required: ["type", "count"],
+    additionalProperties: false,
+    properties: {
+      type: { const: "scatter" },
+      count: { type: "integer", minimum: 1 },
+    },
+  };
+  const compiled = compile_schema({ oneOf: [branch, { type: "null" }] });
+  assert.equal(compiled.validate({ type: "scatter", count: 4 }), true);
+  assert.equal(compiled.validate({ type: "scatter" }), false);
+  assert.equal(
+    compiled.validate({ type: "scatter", count: 4, target: "none" }),
+    false,
+  );
+  for (const value of [
+    { oneOf: [] },
+    { oneOf: Array(9).fill(branch) },
+    { oneOf: [{ $ref: "http://private/schema" }] },
+  ])
+    assert.throws(
+      () => compile_schema(value),
+      (e) => e.code === "INVALID_REQUEST",
+    );
+});
 const schema = {
   type: "object",
   properties: { state: { type: "string", enum: ["ready"] } },
@@ -153,17 +182,36 @@ test("Ollama streams validated text before completion, without thinking or metad
 test("Ollama aborts stalled streams on cancellation and whole-operation deadline", async (t) => {
   for (const mode of ["cancel", "deadline"]) {
     let first;
-    const entered = new Promise((resolve) => { first = resolve; });
-    const { adapter } = await fixture(t, { chat: ({ res }) => {
-      res.writeHead(200, { "Content-Type": "application/x-ndjson" });
-      res.write(JSON.stringify({ model: "fixture:latest", done: false,
-        message: { role: "assistant", content: "Partial" } }) + "\n");
-    } });
+    const entered = new Promise((resolve) => {
+      first = resolve;
+    });
+    const { adapter } = await fixture(t, {
+      chat: ({ res }) => {
+        res.writeHead(200, { "Content-Type": "application/x-ndjson" });
+        res.write(
+          JSON.stringify({
+            model: "fixture:latest",
+            done: false,
+            message: { role: "assistant", content: "Partial" },
+          }) + "\n",
+        );
+      },
+    });
     const controller = new AbortController();
-    const pending = adapter.stream({ messages: request.messages, signal: controller.signal,
-      timeout_ms: mode === "deadline" ? 200 : 2000 }, { on_delta: async () => first() });
-    const rejected = assert.rejects(pending, (error) => error.code ===
-      (mode === "deadline" ? "DEADLINE_EXCEEDED" : "CANCELLED"));
+    const pending = adapter.stream(
+      {
+        messages: request.messages,
+        signal: controller.signal,
+        timeout_ms: mode === "deadline" ? 200 : 2000,
+      },
+      { on_delta: async () => first() },
+    );
+    const rejected = assert.rejects(
+      pending,
+      (error) =>
+        error.code ===
+        (mode === "deadline" ? "DEADLINE_EXCEEDED" : "CANCELLED"),
+    );
     await entered;
     if (mode === "cancel") controller.abort();
     await rejected;
@@ -271,6 +319,86 @@ test("bad JSON and schema mismatches produce redacted INVALID_OUTPUT", async (t)
         error.code === "INVALID_OUTPUT" && !error.message.includes("private"),
     );
   }
+});
+test("internal multi-call sessions retain only the configured model briefly and explicitly unload on completion", async (t) => {
+  const { adapter, calls } = await fixture(t);
+  await adapter.with_model_session(async () => {
+    await adapter.generate(request);
+    await assert.rejects(
+      adapter.with_model_session(async () => {}),
+      (error) => error.code === "ENGINE_BUSY",
+    );
+    await adapter.generate(request);
+  });
+  const generated = calls.filter((call) => call.path === "/api/chat");
+  assert.deepEqual(
+    generated.map((call) => call.body.keep_alive),
+    ["30s", "30s"],
+  );
+  assert.ok(
+    generated.every(
+      (call) =>
+        call.body.options.num_ctx === 4096 &&
+        call.body.options.num_thread === Math.min(4, availableParallelism()),
+    ),
+  );
+  assert.deepEqual(
+    calls
+      .filter((call) => call.path === "/api/generate")
+      .map((call) => call.body),
+    [{ model: "fixture:latest", stream: false, keep_alive: 0 }],
+  );
+  assert.equal(adapter.model_session, null);
+  assert.equal(adapter.phase, null);
+  await adapter.generate(request);
+  assert.equal(
+    calls.filter((call) => call.path === "/api/chat").at(-1).body.keep_alive,
+    0,
+  );
+  assert.equal(
+    calls.filter((call) => call.path === "/api/chat").at(-1).body.options
+      .num_thread,
+    2,
+  );
+});
+test("session cleanup preserves schema errors even when the unload request fails", async (t) => {
+  const { adapter, calls } = await fixture(t, {
+    chat: ({ send }) =>
+      send({ ...result(), message: { role: "assistant", content: "invalid" } }),
+    warmup: ({ send }) => send({}, 503),
+  });
+  await assert.rejects(
+    adapter.with_model_session(() => adapter.generate(request)),
+    (error) => error.code === "INVALID_OUTPUT",
+  );
+  assert.equal(calls.filter((call) => call.path === "/api/generate").length, 1);
+  assert.equal(adapter.model_session, null);
+  assert.equal(adapter.phase, null);
+});
+test("cancelled model sessions use a separate bounded unload request and never return late generation", async (t) => {
+  let entered;
+  const started = new Promise((resolve) => (entered = resolve));
+  const { adapter, calls } = await fixture(t, {
+    chat: ({ res }) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.flushHeaders();
+      entered();
+    },
+  });
+  const controller = new AbortController();
+  const pending = adapter.with_model_session(() =>
+    adapter.generate({ ...request, signal: controller.signal }),
+  );
+  await started;
+  controller.abort();
+  await assert.rejects(pending, (error) => error.code === "CANCELLED");
+  assert.equal(
+    calls.filter((call) => call.path === "/api/generate").at(-1).body
+      .keep_alive,
+    0,
+  );
+  assert.equal(adapter.phase, null);
+  assert.equal(adapter.model_session, null);
 });
 
 test("missing model and remote-model descriptors never transmit prompts or pull a model", async (t) => {

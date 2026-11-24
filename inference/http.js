@@ -4,6 +4,7 @@ import { InferenceError, uuid } from "./contracts.js";
 import { register_exchange_routes } from "../exchange/http.js";
 import { register_delegation_routes } from "../delegation/http.js";
 import { register_chat_route } from "./chat.js";
+import { register_construction_route } from "../construction/http.js";
 
 /** Machine-only API, independent of browser authentication and bypass settings. */
 export const inference_router = (
@@ -41,6 +42,7 @@ export const inference_router = (
     next();
   });
   register_chat_route(router, service);
+  register_construction_route(router, service);
   router.use(express.json({ limit: 4096, strict: true, inflate: false }));
   router.use((req, res, next) => {
     if (Object.keys(req.query).length)

@@ -6,6 +6,7 @@ const source = [
   import.meta.dirname,
   path.join(import.meta.dirname, "engines"),
   path.join(import.meta.dirname, "inference"),
+  path.join(import.meta.dirname, "construction"),
   path.join(import.meta.dirname, "peers"),
   path.join(import.meta.dirname, "exchange"),
   path.join(import.meta.dirname, "delegation"),

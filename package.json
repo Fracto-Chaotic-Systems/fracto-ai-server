@@ -8,6 +8,8 @@
     "node": ">=22.19.0"
   },
   "scripts": {
+    "construction:evaluate": "node --env-file-if-exists=.env scripts/evaluate_construction.js",
+    "construction:plan": "node --env-file-if-exists=.env scripts/plan_construction.js",
     "start": "node --env-file-if-exists=.env index.js",
     "dev": "node --env-file-if-exists=.env --watch index.js",
     "check": "node check_syntax.js && node --test --test-concurrency=2",
@@ -22,6 +24,8 @@
   },
   "fracto": {
     "commands": {
+      "evaluate_construction": "scripts/evaluate_construction.js",
+      "plan_construction": "scripts/plan_construction.js",
       "build_knowledge_bundle": {
         "entry": "scripts/build_knowledge_bundle.js",
         "before": [

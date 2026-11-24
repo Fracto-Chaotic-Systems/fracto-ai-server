@@ -3,6 +3,8 @@ import { create_engine_adapter } from "../engines/registry.js";
 import { LocalStore } from "./storage.js";
 import { InferenceService } from "./service.js";
 import { create_app_chat_reference } from "../app_reference/chat.js";
+import { create_construction_planner } from "../construction/planner.js";
+import { create_construction_catalog } from "../construction/catalog.js";
 
 const headroom = (environment, key, fallback, maximum) => {
   const raw = environment[key] ?? String(fallback);
@@ -37,12 +39,23 @@ export const create_inference_runtime = (environment = process.env) => {
         path.join(import.meta.dirname, "../runtime/inference"),
       { token: environment.FRACTO_AI_INFERENCE_TOKEN || undefined },
     );
+    let construction_planner = null;
+    try {
+      construction_planner = create_construction_planner({
+        catalog: create_construction_catalog({ environment }),
+      });
+    } catch {
+      console.error(
+        "fracto-ai-server construction planner unavailable: invalid catalog configuration",
+      );
+    }
     const service = new InferenceService({
       store,
       adapter,
       min_memory_bytes,
       min_disk_bytes,
       app_reference: create_app_chat_reference(environment),
+      construction_planner,
     });
     return { service, engine_status: () => adapter.status() };
   } catch {

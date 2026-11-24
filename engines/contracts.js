@@ -33,6 +33,7 @@ const keywords = new Set([
   "maxItems",
   "title",
   "description",
+  "oneOf",
   "$schema",
 ]);
 export const plain_object = (value) =>
@@ -95,6 +96,15 @@ export const compile_schema = (schema) => {
           visit(child, depth + 1);
       }
       if (node.items != null) visit(node.items, depth + 1);
+      if (node.oneOf != null) {
+        if (
+          !Array.isArray(node.oneOf) ||
+          node.oneOf.length < 1 ||
+          node.oneOf.length > 8
+        )
+          throw new Error();
+        for (const branch of node.oneOf) visit(branch, depth + 1);
+      }
       if (plain_object(node.additionalProperties))
         visit(node.additionalProperties, depth + 1);
     };

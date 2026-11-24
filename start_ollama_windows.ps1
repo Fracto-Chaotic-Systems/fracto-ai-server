@@ -33,12 +33,15 @@ try {
     # Process-local configuration; do not rewrite the user's global environment.
     $env:OLLAMA_NO_CLOUD = '1'
     $env:OLLAMA_HOST = '127.0.0.1:11434'
-    $env:OLLAMA_MODELS = Join-Path $runtime 'models'
+    . (Join-Path $PSScriptRoot 'ollama_storage.ps1')
+    $env:OLLAMA_MODELS = Get-FractoOllamaModelsDirectory $runtime
     $env:OLLAMA_MAX_LOADED_MODELS = '1'
     $env:OLLAMA_NUM_PARALLEL = '1'
     $env:OLLAMA_MAX_QUEUE = '16'
     $env:OLLAMA_CONTEXT_LENGTH = '4096'
     $env:OLLAMA_KEEP_ALIVE = '0'
+    . (Join-Path $PSScriptRoot 'ollama_acceleration.ps1')
+    Set-FractoOllamaAccelerationEnvironment $runtime
     $logs = Join-Path $runtime 'logs'
     $null = New-Item -ItemType Directory -Path $logs -Force
     $attempt = 0

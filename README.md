@@ -11,6 +11,27 @@ one node per request. See [the adapter contract](engines/README.md).
 
 ## Current stage
 
+The construction [representative evaluation](construction/EVALUATION.md) passes
+scripted pipeline, renderer and MySQL fidelity checks. The live plain-floor gate
+now passes in 9.1–9.3 seconds from an unloaded model after GPU initialization
+(17.3 seconds on the first GPU run). [Latency measurements and fixes](construction/LATENCY.md)
+document NVMe model storage, integrated-GPU discovery, compact output and bounded
+session resources. All ten vegetation materials and `dry_dirt` are now calibrated.
+The live wooded-path rerun now passes exact 40/6/4 counts and full-footprint
+clearance in 23.9 seconds using a reviewed parameterized scatter recipe; see the
+evaluation report. Actual memory benefit
+has not been measured.
+
+The [construction planner](construction/README.md) now turns a component brief
+and document into a bounded, catalog-backed proposal using the configured local
+model. It revalidates pinned materials and replays shared construction tools
+without saving or applying edits. The machine-only endpoint is
+`POST /inference/construction/plan`. The dedicated `/construction/plan` browser
+route now supports stage conversation, preview and explicit Apply with the
+enabled-session/trusted-origin policy. Explicit browser-local preferences and
+recipe instructions can now provide bounded guidance to both planner calls;
+automatic learning and account-linked memory remain future work.
+
 The [subject-provider contract](subject_providers/README.md) defines validated,
 versioned source/document declarations for future automatic app-information
 seeding. The UI declaration now feeds a reviewed build-time extractor and
@@ -50,7 +71,7 @@ examples, evaluation cases and receipts. Only an evaluated, explicitly active
 release can run through the local skill CLI; startup bootstraps the shipped
 infrastructure release once and preserves later selections/deactivation.
 Registered procedures are inert data, with execution restricted to shipped
-read-only handlers. Model synthesis remains later work.
+read-only handlers. Model synthesis within those registry handlers remains later work.
 
 The [environment/asset data-quality skill](data_quality/README.md) scans approved
 local snapshots for duplicate/missing/ambiguous references and content patterns.
@@ -203,6 +224,8 @@ or fleet dependency is available.
 - `inference/`: durable queue, SQLite, protected local credentials, atomic
   artifacts, admission and machine-only APIs. `inference.test.js` covers lifecycle,
   recovery, privacy and resource failures without loading a model.
+- `construction/`: proposal-only local planning, bounded catalog retrieval,
+  reviewed recipes and independently validated shared construction commands.
 - `check_syntax.js`: checks service, adapter, inference, peer, exchange and delegation JavaScript before tests.
 - `peers/`: protected identity/enrollment, certificate allowlist, mTLS listener,
   bounded status client, automatic reload/probing, aggregate status and local

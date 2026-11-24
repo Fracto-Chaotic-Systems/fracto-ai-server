@@ -216,6 +216,15 @@ Standalone: `npm ci`, then `npm start` with optional approved local model in
 `FRACTO_AI_MODEL`. Store/token creation is automatic, without peers/MySQL/full-stack
 preflight. Empty model configuration remains a supported metadata-only install.
 
+## Construction proposals
+
+Construction planning shares this service's machine authorization, local model,
+resource admission and exclusive generation slot. Its proposal-only
+`POST /inference/construction/plan` uses a separate bounded body parser and
+175-second deadline; it creates no queue record, artifact or transcript.
+See [construction API and limits](../construction/README.md). Disconnect/shutdown
+cancels the request. Stage preview/apply and persistence remain caller-owned.
+
 ## Backup and restore
 
 Stop this AI service and wait for its process/database to close. Copy the entire

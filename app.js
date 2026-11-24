@@ -3,6 +3,7 @@ import { create_engine_status_reader } from "./engines/registry.js";
 import { public_engine_status } from "./engines/public_status.js";
 import { inference_router } from "./inference/http.js";
 import { public_peer_status } from "./peers/public_status.js";
+import { construction_browser_router } from "./construction/browser.js";
 
 export const SERVICE_NAME = "fracto-ai-server";
 
@@ -49,6 +50,7 @@ export const create_app = ({
     "/inference",
     inference_router(inference, get_exchange, get_delegation),
   );
+  app.use("/construction", construction_browser_router(inference));
   app.get("/peers/status", (req, res) => {
     res.set("Cache-Control", "no-store");
     try {

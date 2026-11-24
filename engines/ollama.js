@@ -1,4 +1,5 @@
 import { EngineError, with_deadline } from "./errors.js";
+import { availableParallelism } from "node:os";
 import {
   exact_fields,
   FEATURES,
@@ -28,6 +29,39 @@ export class OllamaAdapter {
     this.phase = null;
     this.cached = null;
     this.pending_status = null;
+    this.model_session = null;
+  }
+
+  // Internal multi-call lease. InferenceService holds its existing admission
+  // slot throughout; callers cannot select this through a generation payload.
+  async with_model_session(execute) {
+    if (typeof execute !== "function") throw new EngineError("INVALID_REQUEST");
+    if (this.phase || this.model_session) throw new EngineError("ENGINE_BUSY");
+    const session = {
+      touched: false,
+      cpu_threads: Math.min(4, availableParallelism()),
+    };
+    this.model_session = session;
+    try {
+      return await execute();
+    } finally {
+      if (session.touched && this.model) {
+        this.phase = "busy";
+        try {
+          await this.transport.json("/api/generate", {
+            signal: AbortSignal.timeout(5000),
+            model_request: true,
+            body: { model: this.model, stream: false, keep_alive: 0 },
+          });
+        } catch {
+          // The last successful call still has a bounded 30-second expiry.
+          // Cleanup must never hide a generation/cancellation error or retry it.
+        }
+      }
+      this.phase = null;
+      this.model_session = null;
+      this.cached = null;
+    }
   }
 
   async list_models(options = {}) {
@@ -170,16 +204,17 @@ export class OllamaAdapter {
         model: this.model,
         messages: request.messages,
         stream: false,
-        keep_alive: 0,
+        keep_alive: this.model_session ? "30s" : 0,
         options: {
           num_ctx: 4096,
-          num_thread: 2,
+          num_thread: this.model_session?.cpu_threads ?? 2,
           num_predict: request.max_tokens,
           temperature: request.temperature,
         },
         ...(selected.thinking ? { think: false } : {}),
         ...(request.schema ? { format: request.schema.schema } : {}),
       };
+      if (this.model_session) this.model_session.touched = true;
       const response = await this.transport.json("/api/chat", {
         signal,
         body,
@@ -197,6 +232,7 @@ export class OllamaAdapter {
     exact_fields(options, ["signal", "timeout_ms"]);
     return this.operation("warming", options, async (signal) => {
       const selected = await this.selected(signal);
+      if (this.model_session) this.model_session.touched = true;
       const response = await this.transport.json("/api/generate", {
         signal,
         model_request: true,
@@ -204,7 +240,10 @@ export class OllamaAdapter {
           model: this.model,
           stream: false,
           keep_alive: "30s",
-          options: { num_ctx: 4096, num_thread: 2 },
+          options: {
+            num_ctx: 4096,
+            num_thread: this.model_session?.cpu_threads ?? 2,
+          },
         },
       });
       if (response.done !== true) throw new EngineError("PROTOCOL_ERROR");
@@ -236,16 +275,17 @@ export class OllamaAdapter {
       let text = "",
         finished = false,
         final;
+      if (this.model_session) this.model_session.touched = true;
       for await (const record of this.transport.stream("/api/chat", {
         signal,
         body: {
           model: this.model,
           messages: request.messages,
           stream: true,
-          keep_alive: 0,
+          keep_alive: this.model_session ? "30s" : 0,
           options: {
             num_ctx: 4096,
-            num_thread: 2,
+            num_thread: this.model_session?.cpu_threads ?? 2,
             num_predict: request.max_tokens,
             temperature: request.temperature,
           },

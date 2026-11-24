@@ -35,10 +35,11 @@ permissions and does not bypass PowerShell policy or open firewall rules.
 
 ## Storage and configuration
 
-All project-managed files are beneath this checkout's ignored `runtime/ollama/`:
+The installation and controller state are in this checkout's ignored `runtime/ollama/`:
 
 - `0.40.14/`: verified standalone executable and packaged runtime libraries.
 - `models/`: persistent local model storage; initially empty.
+- `storage.json`: optional versioned absolute model-store path, selected explicitly.
 - `installation.json`: version, official source and verified archive checksum.
 - `status.json`: installation/start/readiness status, with generic error codes.
 - `logs/`: engine stdout/stderr for local administration, never forwarded to AI.
@@ -46,8 +47,43 @@ All project-managed files are beneath this checkout's ignored `runtime/ollama/`:
 
 Ollama may also create its ordinary per-account configuration/key directory under
 the Windows account profile. It is not exported or shared with peers. Model
-storage is explicitly redirected to the project-owned directory above. Neither
+storage is explicitly redirected to the managed directory above or the configured
+local model-store path. Neither
 runtime files nor model weights are included in Git or Docker build context.
+
+Optional `runtime/ollama/acceleration.json` selects integrated-GPU discovery for
+this managed installation. The tested Intel Arc 140V was detected but excluded
+by the default policy. To enable its already installed Vulkan backend, write:
+
+```json
+{"schema_version":1,"integrated_gpu":true}
+```
+
+Restart the idle managed native engine/controller after changing it. An absent
+file preserves engine defaults; false opts back out and invalid data fails closed.
+The controller applies `OLLAMA_IGPU_ENABLE=1` and `OLLAMA_VULKAN=1` only to its child.
+No driver installation or global environment change is required. GPU availability
+and speed depend on the target host; verify with the live evaluation. See Ollama's
+[environment configuration](https://github.com/ollama/ollama/blob/main/envconfig/config.go)
+and construction/LATENCY.md for the measured result.
+
+For interactive construction, put model weights on an internal SSD/NVMe rather
+than a USB hard drive. With an idle engine, run:
+
+```powershell
+powershell.exe -NoProfile -File migrate_ollama_models_windows.ps1
+```
+
+The default destination is `%LOCALAPPDATA%\Fracto\ollama\models`; use
+`-ModelsDirectory C:\your\model-store` for another local location. The command
+copies blobs, both manifest layouts and metadata, validates blob SHA-256 digests,
+preserves the source and any conflicting destination, then atomically publishes
+`storage.json`. No model is downloaded or changed. Restart the managed native
+engine/controller while idle to activate it. Without this configuration, existing
+installations continue to use `runtime/ollama/models`; no silent migration occurs
+on startup. An unavailable configured directory fails closed. Rollback consists
+of restoring the prior storage configuration and restarting the idle controller;
+the original files are retained. See construction/LATENCY.md for measurements.
 
 The controller applies these settings only to its child process:
 
@@ -55,12 +91,17 @@ The controller applies these settings only to its child process:
 | -------------------------- | --------------------------------------------------------- |
 | `OLLAMA_HOST`              | `127.0.0.1:11434`                                         |
 | `OLLAMA_NO_CLOUD`          | `1`                                                       |
-| `OLLAMA_MODELS`            | This checkout's `runtime/ollama/models`                   |
+| `OLLAMA_MODELS`            | Configured local store; otherwise `runtime/ollama/models` |
 | `OLLAMA_MAX_LOADED_MODELS` | `1`                                                       |
 | `OLLAMA_NUM_PARALLEL`      | `1`                                                       |
 | `OLLAMA_MAX_QUEUE`         | `16`                                                      |
 | `OLLAMA_CONTEXT_LENGTH`    | `4096`                                                    |
 | `OLLAMA_KEEP_ALIVE`        | `0` (unload after a request unless explicitly overridden) |
+
+The table's zero keep-alive is the daemon default. Ordinary adapter calls explicitly
+unload; construction's admitted multi-call session overrides retention to 30 seconds
+between phases and explicitly unloads on exit. The selected model and daemon
+environment are unchanged. See engines/README.md for the scoped lifecycle.
 
 `FRACTO_OLLAMA_ENABLED=false` suppresses new controller launches. It does not stop
 an already running controller or engine. Ollama remains independent of Fracto's

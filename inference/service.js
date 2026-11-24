@@ -14,6 +14,7 @@ import {
   validate_output,
 } from "./contracts.js";
 import { is_terminal } from "./storage.js";
+import { construction_request } from "../construction/contracts.js";
 
 const number_or_null = (value) =>
   typeof value === "number" && Number.isFinite(value) && value >= 0
@@ -30,6 +31,7 @@ export class InferenceService {
     pending_limit = 16,
     poll_ms = 250,
     app_reference = null,
+    construction_planner = null,
   }) {
     this.store = store;
     this.adapter = adapter;
@@ -43,6 +45,7 @@ export class InferenceService {
     this.active = null;
     this.chat_active = null;
     this.app_reference = app_reference;
+    this.construction_planner = construction_planner;
     this.reference_active = new Set();
     this.last_maintenance = now();
     // Never replay an ambiguous generation after a crash or graceful shutdown.
@@ -171,6 +174,72 @@ export class InferenceService {
       );
     } finally {
       this.chat_active = null;
+    }
+  }
+  async construction_plan(body, { signal, timeout_ms = 175000 } = {}) {
+    this.available();
+    const request = construction_request(body);
+    if (!this.construction_planner) fail("CONSTRUCTION_UNAVAILABLE", 503);
+    this.protect(() => {
+      this.resources();
+      if (
+        this.active ||
+        this.chat_active ||
+        this.store.all().some((job) => job.state === "queued")
+      )
+        fail("ENGINE_BUSY", 429);
+    });
+    const controller = new AbortController();
+    const combined = signal
+      ? AbortSignal.any([signal, controller.signal])
+      : controller.signal;
+    const entry = { controller, task: null, kind: "construction" };
+    this.chat_active = entry;
+    const task = with_deadline(
+      async (deadline_signal) => {
+        try {
+          const plan = () =>
+            this.construction_planner(request, {
+              generate: (generation) => this.adapter.generate(generation),
+              signal: deadline_signal,
+            });
+          const result = this.adapter.with_model_session
+            ? await this.adapter.with_model_session(plan)
+            : await plan();
+          deadline_signal.throwIfAborted();
+          this.available();
+          return { result };
+        } catch (error) {
+          // Preserve domain errors across the engine-neutral deadline wrapper.
+          if (error instanceof InferenceError) return { failure: error };
+          throw error;
+        }
+      },
+      { signal: combined, timeout_ms },
+    );
+    entry.task = task;
+    try {
+      const value = await task;
+      if (value.failure) throw value.failure;
+      return value.result;
+    } catch (error) {
+      if (error instanceof InferenceError) throw error;
+      const code =
+        error instanceof EngineError ? error.code : "ENGINE_UNAVAILABLE";
+      fail(
+        code,
+        code === "ENGINE_BUSY"
+          ? 429
+          : code === "CANCELLED"
+            ? 409
+            : code === "DEADLINE_EXCEEDED"
+              ? 504
+              : ["INVALID_OUTPUT", "PROTOCOL_ERROR"].includes(code)
+                ? 502
+                : 503,
+      );
+    } finally {
+      if (this.chat_active === entry) this.chat_active = null;
     }
   }
   async reference_chat(content, { signal, on_delta } = {}) {

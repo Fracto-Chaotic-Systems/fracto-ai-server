@@ -63,7 +63,8 @@ part of the contract. No warm-up or generation happens during health/status read
 
 JSON Schema support is an explicit bounded draft-07 subset: `type`, `properties`,
 `required`, `additionalProperties`, `items`, `enum`, `const`, `minimum`, `maximum`,
-`minLength`, `maxLength`, `minItems`, `maxItems`, `title`, `description` and the
+`minLength`, `maxLength`, `minItems`, `maxItems`, `title`, `description`, bounded
+`oneOf` (one to eight recursively checked alternatives) and the
 canonical draft-07 `$schema`. Schemas are limited to 16 KiB, nesting depth 8 and
 512 schema nodes. Other keywords, references, executable patterns, formats and
 unknown dialects are rejected. Ajv validates the schema and the parsed generated
@@ -90,6 +91,22 @@ Explicit `warmup()` loads the selected model with a 30-second keep-alive and
 reports `warming` while in progress. It must be admitted by its caller's resource
 policy. Generation reports `busy` (including any cold load), and requests model
 unloading afterward. Neither is invoked automatically by startup or status.
+
+Construction uses the internal `with_model_session(callback)` lifecycle while
+holding its existing inference admission slot. Its two generations request a
+bounded 30-second keep-alive to reuse the selected model between phases. The
+session explicitly unloads in a finally block after success, failure or cancellation
+using a separate five-second cleanup deadline. Cleanup failure preserves the
+original result/error; bounded retention remains the fallback. Ordinary generation
+and streaming outside a session still request immediate unloading. Nested sessions
+are rejected; request payloads cannot select this lifecycle or change model,
+threads, context or retention. Status still never loads a model.
+
+The internal construction session uses at most four CPU threads (capped by the
+calling host's available parallelism). Ordinary generation, streaming and warm-up
+outside that session retain the two-thread profile. Context/output/admission
+limits remain unchanged. This bounded profile was measured with compact floor
+output after moving model weights from USB HDD to NVMe; see construction/LATENCY.md.
 
 ## Read-only status
 
